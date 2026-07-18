@@ -26,8 +26,18 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], interac
     while (true) {
       steps++;
 
-      if (steps > MAX_STEPS) throw new Error("MAX STEPS REACHED");
-
+      if (steps > MAX_STEPS) {
+        const answer = await askQuestion(
+          `Agent has used ${MAX_STEPS} steps without finishing. Continue? (y/n) `
+        );
+        if (answer.trim().toLowerCase() === "y") {
+          steps = 0; // reset budget, keep looping — don't push a new user message
+          continue;
+        } else {
+          break; // stop here, but keep whatever aiResponse has so far
+        }
+      }
+      
       let textResponseAccumulated = "";
       let stream;
       let functionCalls = false;
@@ -45,9 +55,8 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], interac
       } catch (e) {
         console.log("API ERROR", e);
         throw new Error("API ERROR");
-      }
-                  
-      
+      }           
+
       for await (const event of stream) {
         const thoughtSignature = event?.candidates?.[0]?.content?.parts?.[0]?.thoughtSignature; 
         
@@ -93,18 +102,20 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], interac
               const question = `AGENT wants to run a bash command \n\n ${JSON.stringify(toolToCall.args, null, 2)} \n\n Y/N ??`;
               
               const answer = await askQuestion(question);
-              
-              if (answer === "N") {
+
+              const approved = answer.trim().toLowerCase() === "y";
+
+              if (!approved) {
                 aiResponse.push({
-                role: "user",
-                parts: [{
-                  functionResponse: {
-                    name: toolToCall.name,
-                    response: { answer: `user do not want you to run bash command: ${JSON.stringify(toolToCall.args, null, 2)}, so avoid commands like these in future steps.` },
-                  },
-                  thoughtSignature
-                }]
-              });
+                  role: "user",
+                  parts: [{
+                    functionResponse: {
+                      name: toolToCall.name,
+                      response: { answer: `user do not want you to run bash command: ${JSON.stringify(toolToCall.args, null, 2)}, so avoid commands like these in future steps.` },
+                    },
+                    thoughtSignature
+                  }]
+                });
               } else {
                 aiResponse.push({
                   parts: [{
@@ -137,17 +148,15 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], interac
           }          
         } else if (!functionCalls && typeof event?.candidates?.[0]?.content?.parts?.[0]?.text === "string" && !event?.candidates?.[0]?.content?.parts?.[0]?.text.includes("non-text")) {
           textResponseAccumulated += event?.candidates?.[0]?.content?.parts?.[0]?.text
-          aiResponse.push({
-            role: "model",
-            parts: [{ text: textResponseAccumulated }]
-          });
+          process.stdout.write(textResponseAccumulated);
         } else {
         }
       }
 
-      console.log(textResponseAccumulated);
-
-      if (steps === MAX_STEPS) steps -= 5; // more iterations
+      aiResponse.push({
+        role: "model",
+        parts: [{ text: textResponseAccumulated }]
+      });
 
       if (!functionCalls) break;
     }
@@ -155,6 +164,6 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], interac
     return { aiResponse, interaction_id, success: true }
   } catch (err) {
     console.log("ERROR", err)
-    return { aiResponse: [], interaction_id: undefined, success: false }
+    return { aiResponse, interaction_id, success: false }
   }
 }
