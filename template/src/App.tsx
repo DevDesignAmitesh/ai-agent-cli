@@ -55,7 +55,7 @@ function App() {
   }
 
   const handleDeleteTodo = (id: string) => {
-    setTodos(todos.filter(todo => todo.id === id))
+    setTodos(todos.filter(todo => todo.id !== id))
   }
 
   const handleClearCompleted = () => {

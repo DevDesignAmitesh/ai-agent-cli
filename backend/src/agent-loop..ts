@@ -37,8 +37,6 @@ export async function agentLoop(input: string, aiResponse: AiResponse[]) {
       
       let stream; 
       
-      console.dir(aiResponse, { depth: null });
-
       try {
         stream = await client.interactions.create({
           model: "gemini-3.5-flash",
@@ -75,17 +73,9 @@ export async function agentLoop(input: string, aiResponse: AiResponse[]) {
         try {
           console.log("calling", funcCallName)
           console.log("args", funcArgsAccumulated)
-
-          aiResponse.push({
-            id: funcCallId,
-            name: funcCallName,
-            arguments: JSON.parse(funcArgsAccumulated),
-            type: "function_call"
-          })
           
           const fn = TOOL_IMPLEMENTATIONS[funcCallName];
           const response = await fn(JSON.parse(funcArgsAccumulated))
-
 
           aiResponse.push({
             call_id: funcCallId,
