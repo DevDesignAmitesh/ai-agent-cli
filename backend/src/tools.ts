@@ -1,5 +1,5 @@
 import { bash } from "./project-files";
-import { FunctionTool } from "./types";
+import { type FunctionTool } from "./types";
 
 export const TOOLS: FunctionTool[] = [
   {
@@ -122,7 +122,8 @@ export const TOOL_IMPLEMENTATIONS = {
   }: {
     questions: string[];
   }) => {
-    return questions;
+    // return questions;
+    return questions.join(", ");
   },
   CREAT_PLAN: async ({
     summary,
@@ -131,6 +132,7 @@ export const TOOL_IMPLEMENTATIONS = {
     summary: string;
     plan: string[];
   }) => {
-    return { plan, summary }
+    // return { plan, summary }
+    return plan.join(", ");
   },
 };

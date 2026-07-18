@@ -28,6 +28,13 @@ export type FunctionTool = {
 
 export type AiResponse = 
   {
+    type: "function_call",
+    id: string,
+    name: string,
+    arguments: Record<string, any>
+  }
+  |
+  {
     type: "function_result",
     name: string,
     call_id: string,

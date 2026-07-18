@@ -8,16 +8,24 @@ export const projectRoot = path.resolve(currentDirectory, "../../template");
 
 
 export async function bash({ command }: { command: string }) {
-  return new Promise<{ stdout: string; stderr: string }>((resolve) => {
-    process.chdir(projectRoot);
-    const child = spawn("wsl", ["bash", "-lc", command]);
-
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout.on("data", (d) => (stdout += d));
-    child.stderr.on("data", (d) => (stderr += d));
-
-    child.on("close", () => resolve({ stdout, stderr }));
-  });
+  try {
+    const data = await new Promise<{ stdout: string; stderr: string }>((resolve) => {
+      process.chdir(projectRoot);
+      const child = spawn("wsl", ["bash", "-lc", command]);
+  
+      let stdout = "";
+      let stderr = "";
+  
+      child.stdout.on("data", (d) => (stdout += d));
+      child.stderr.on("data", (d) => (stderr += d));
+  
+      child.on("close", () => resolve({ stdout, stderr }));
+    });
+  
+    if (data.stderr !== "") return data.stderr;
+    else if (data.stdout !== "") return data.stdout
+  } catch (e) {
+    console.log("BASH ERROR", e)
+    throw new Error("BASH ERROR")
+  }
 }

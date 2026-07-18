@@ -6,6 +6,8 @@ import type { AiResponse } from './types';
 const rl = readline.createInterface({ input, output });
 let firstTimeLoop = true;
 const aiResponse: AiResponse[] = []; 
+let interaction_id: string | undefined = undefined;
+
 
 function main(firstTime: boolean) {
   rl.question(firstTime ? 'Hey, How can I help you? ' : "Any follow up? Type NO to quit.", async (input) => {  
@@ -15,7 +17,7 @@ function main(firstTime: boolean) {
     if (input === "NO") {
       rl.close();
     } else {
-      await agentLoop(input, aiResponse)
+      await agentLoop(input, aiResponse, interaction_id)
       firstTimeLoop = false
       main(firstTimeLoop)
     }
