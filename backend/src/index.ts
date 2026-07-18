@@ -1,28 +1,24 @@
-import readline from 'node:readline';
-import { stdin as input, stdout as output } from 'node:process';
 import { agentLoop } from './agent-loop.';
-import type { AiResponse } from './types';
+import { type GeminiTurn } from './types';
+import { askQuestion } from './utils';
 
-const rl = readline.createInterface({ input, output });
 let firstTimeLoop = true;
-const aiResponse: AiResponse[] = []; 
+const aiResponse: GeminiTurn[] = [];
 let interaction_id: string | undefined = undefined;
 
 
-function main(firstTime: boolean) {
-  rl.question(firstTime ? 'Hey, How can I help you? ' : "Any follow up? Type NO to quit.", async (input) => {  
+async function main(firstTime: boolean, aiResponse: GeminiTurn[], interaction_id: string | undefined) {
+  const answer = await askQuestion(firstTime? "How can i help you? " : "Any follow up? ");
   
-    if (!input) throw new Error("input not provided");
-    
-    if (input === "NO") {
-      rl.close();
-    } else {
-      await agentLoop(input, aiResponse, interaction_id)
-      firstTimeLoop = false
-      main(firstTimeLoop)
-    }
-    
-  });
+  if (answer === "no") process.exit(0)
+  
+  const res = await agentLoop(answer, aiResponse, interaction_id)
+
+  if (!res.success) process.exit(1);
+
+  firstTimeLoop = false
+  main(firstTimeLoop, res.aiResponse, res.interaction_id)
 }
 
-main(firstTimeLoop);
+main(firstTimeLoop, aiResponse, interaction_id);
+

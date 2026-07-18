@@ -1,9 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
 import { TOOL_IMPLEMENTATIONS, TOOLS } from "./tools";
 import { SYSTEM_PROMPT } from "./system-prompt";
-import { type AiResponse } from "./types";
+import { type GeminiTurn } from "./types";
+import { askQuestion } from "./utils";
 
-const MAX_STEPS = 20;
+const MAX_STEPS = 10;
 
 if (!process.env.GEMINI_API_KEY) {
   throw new Error("process.env.GEMINI_API_KEY not found")
@@ -13,117 +14,132 @@ const client = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-export async function agentLoop(input: string, aiResponse: AiResponse[], interaction_id: string | undefined) {
+export async function agentLoop(input: string, aiResponse: GeminiTurn[], interaction_id: string | undefined) {
   try {
-    console.log("RUNNING 1");
     let steps = 0;
 
     aiResponse.push({
-      type: "user_input",
-      content: [{ text: input, type: "text" }]
+      role: "user",
+      parts: [{ text: input }]
     })
-    
     
     while (true) {
       steps++;
-      console.log("STEPS", steps);
-      // if (steps > MAX_STEPS) {
-      //   throw new Error("MAX_STEPS reached");
-      // }
 
-      let funcCallId = null;
-      let funcCallName = null;
-      let funcArgsAccumulated = "";
+      if (steps > MAX_STEPS) throw new Error("MAX STEPS REACHED");
+
       let textResponseAccumulated = "";
-      let stream; 
+      let stream;
+      let functionCalls = false;
       
-      console.log("typeof interaction_id", typeof interaction_id);
-      
-      console.log("RUNNING 2");
       try {
-        stream = await client.interactions.create({
+        stream = await client.models.generateContentStream({
+          contents: aiResponse,
           model: "gemini-3.5-flash",
-          tools: TOOLS,
-          store: true,
-          previous_interaction_id: interaction_id,
-          input: aiResponse,
-          stream: true,
-          system_instruction: SYSTEM_PROMPT,
+          config: {
+            systemInstruction: SYSTEM_PROMPT,
+            tools: TOOLS,
+          }
+          
         });
       } catch (e) {
         console.log("API ERROR", e);
-        throw new Error("API ERROR")
+        throw new Error("API ERROR");
       }
-            
-      // console.dir(aiResponse, { depth: null })
+                  
       
       for await (const event of stream) {
-        console.log("RUNNING 3");
-        if (event.event_type === "interaction.created") {
-          interaction_id = event.interaction.id
-        } else if (event.event_type === "step.start") {
-            const step = event.step;
-          if (step.type === "function_call") {
-            funcCallId = step.id;
-            funcCallName = step.name;
-          }
-        } else if (event.event_type === "step.delta") {
-          if (event.delta.type === "arguments_delta") {
-            funcArgsAccumulated += event.delta.arguments;
-          } else  if (event.delta.type === "text") {
-            textResponseAccumulated += event.delta.text;
-          }
-        }
-      }
-      
-      if (funcCallId && funcCallName) {
-        console.log("RUNNING 4");
-        try {
-          console.log("calling", funcCallName)
-          console.log("args", funcArgsAccumulated)
+        const thoughtSignature = event?.candidates?.[0]?.content?.parts?.[0]?.thoughtSignature; 
+        
+        if (event?.candidates?.[0]?.content?.parts?.[0]?.functionCall) {
+          const toolToCall = event?.candidates?.[0]?.content?.parts?.[0]?.functionCall
           
-          let keyValues: Record<string, unknown> = JSON.parse(funcArgsAccumulated);
+          console.log("tool getting called", JSON.stringify(toolToCall, null, 2))
           
-          for (const [key, val] of Object.entries(keyValues)) {
-            keyValues[key] = JSON.stringify(val)
-          }
-          
-          // console.log("KEY VALUES", keyValues);
-          
-          // aiResponse.push({
-          //   id: funcCallId,
-          //   name: funcCallName,
-          //   arguments: keyValues,
-          //   type: "function_call"
-          // });
+          functionCalls = true;
 
-          const fn = TOOL_IMPLEMENTATIONS[funcCallName];
-          const response = await fn(JSON.parse(funcArgsAccumulated))
-
-          // console.log("RESPONSE", response);
-          
+          if (toolToCall.name) {
+            if (toolToCall.name === "ASK_QUESTION" || toolToCall.name === "CREATE_PLAN") {            
+              aiResponse.push({
+                parts: [{
+                  functionCall: {
+                    name: toolToCall.name,
+                    id: toolToCall.id,
+                    args: toolToCall.args
+                  },
+                  thoughtSignature
+                }],
+                role: "model"
+              });
+              
+              // TODO: handle other tools here too
+              const question = `\n\n${toolToCall.name === "ASK_QUESTION" ? `kindly answer these questions\n ${JSON.stringify(toolToCall.args)}\n` : `kindly approve the plan or let us know the issues with the plan\n ${JSON.stringify(toolToCall.args)}`}\n`;
+              
+              const answer = await askQuestion(question);
+              
+              // TODO: handle it more gracefully.
+              if (!answer) throw new Error("user input not provided");
+              
+              aiResponse.push({
+                role: "user",
+                parts: [{
+                  functionResponse: {
+                    name: toolToCall.name,
+                    response: { answer },
+                  },
+                  thoughtSignature
+                }]
+              });
+            } else if (toolToCall.name === "BASH") {
+              aiResponse.push({
+                parts: [{
+                  functionCall: {
+                    name: toolToCall.name,
+                    id: toolToCall.id,
+                    args: toolToCall.args
+                  },
+                  thoughtSignature
+                }],
+                role: "model"
+              });
+              
+              const fn = TOOL_IMPLEMENTATIONS[toolToCall.name];
+              const response = await fn(toolToCall.args);
+              
+              aiResponse.push({
+                parts: [{
+                  functionResponse: {
+                    name: toolToCall.name,
+                    id: toolToCall.id,
+                    response
+                  },
+                  thoughtSignature
+                }],
+                role: "model"
+              });
+            }
+          }          
+        } else if (!functionCalls && typeof event?.candidates?.[0]?.content?.parts?.[0]?.text === "string" && !event?.candidates?.[0]?.content?.parts?.[0]?.text.includes("non-text")) {
+          textResponseAccumulated += event?.candidates?.[0]?.content?.parts?.[0]?.text
           aiResponse.push({
-            call_id: funcCallId,
-            name: funcCallName,
-            result: response,
-            type: "function_result"
+            role: "model",
+            parts: [{ text: textResponseAccumulated }]
           });
-        } catch (err) {
-          console.log(err)
-          throw new Error("UNABLE TO PARSE ARGUMENTS");
+        } else {
+          console.log("SOMETHING CRAZY");
+          console.log(event?.candidates?.[0]?.content?.parts?.[0]?.text);
+          console.log(event?.candidates?.[0]?.content?.parts?.[0]?.functionCall); 
         }
-      } else {
-        console.log("RUNNING 5");
-        aiResponse.push({
-          content: [{ type: "text", text: textResponseAccumulated }],
-          type: "model_output"
-        })
-        console.log(textResponseAccumulated)
-        break;
       }
+
+      console.log(textResponseAccumulated);
+
+      if (!functionCalls) break;
     }
+
+    return { aiResponse, interaction_id, success: true }
   } catch (err) {
-    console.log("RUNNING 6");
-    console.log("ERROR", err.message);
+    console.log("ERROR", err)
+    return { aiResponse: [], interaction_id: undefined, success: false }
   }
 }
