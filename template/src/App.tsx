@@ -7,26 +7,33 @@ interface Todo {
   completed: boolean
 }
 
+// Safe fallback for generating unique IDs
+const generateId = (): string => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    try {
+      return crypto.randomUUID()
+    } catch {
+      // Fallback if randomUUID fails
+    }
+  }
+  return Math.random().toString(36).substring(2, 9) + Date.now().toString(36)
+}
+
 function App() {
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+  const [theme, setTheme] = useState<'light' | 'dark' | 'pink'>(() => {
     const saved = localStorage.getItem('theme')
-    const initialTheme = saved === 'light' || saved === 'dark' 
+    const initialTheme = saved === 'light' || saved === 'dark' || saved === 'pink'
       ? saved 
       : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-    
-    if (initialTheme === 'dark') {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
     return initialTheme
   })
 
   useEffect(() => {
+    document.documentElement.classList.remove('dark', 'pink')
     if (theme === 'dark') {
       document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
+    } else if (theme === 'pink') {
+      document.documentElement.classList.add('pink')
     }
     localStorage.setItem('theme', theme)
   }, [theme])
@@ -59,7 +66,7 @@ function App() {
     if (!newTodoText.trim()) return
 
     const newTodo: Todo = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       text: newTodoText.trim(),
       completed: false
     }
@@ -100,16 +107,22 @@ function App() {
               <button 
                 type="button" 
                 className="theme-toggle" 
-                onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-                title={"Switch to " + (theme === 'light' ? 'dark' : 'light') + " mode"}
-                aria-label={"Switch to " + (theme === 'light' ? 'dark' : 'light') + " mode"}
+                onClick={() => {
+                  if (theme === 'light') setTheme('dark')
+                  else if (theme === 'dark') setTheme('pink')
+                  else setTheme('light')
+                }}
+                title="Switch Theme"
+                aria-label="Switch Theme"
               >
                 {theme === 'light' ? (
                   <svg className="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <title>Light mode - click to switch</title>
                     <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
                   </svg>
-                ) : (
+                ) : theme === 'dark' ? (
                   <svg className="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <title>Dark mode - click to switch</title>
                     <circle cx="12" cy="12" r="5"></circle>
                     <line x1="12" y1="1" x2="12" y2="3"></line>
                     <line x1="12" y1="21" x2="12" y2="23"></line>
@@ -119,6 +132,11 @@ function App() {
                     <line x1="21" y1="12" x2="23" y2="12"></line>
                     <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
                     <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                  </svg>
+                ) : (
+                  <svg className="theme-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none" style={{ color: 'var(--accent)' }}>
+                    <title>Pink mode - click to switch</title>
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                   </svg>
                 )}
               </button>

@@ -53,9 +53,7 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], interac
         
         if (event?.candidates?.[0]?.content?.parts?.[0]?.functionCall) {
           const toolToCall = event?.candidates?.[0]?.content?.parts?.[0]?.functionCall
-          
-          console.log("tool getting called", JSON.stringify(toolToCall, null, 2))
-          
+                    
           functionCalls = true;
 
           if (toolToCall.name) {
@@ -91,32 +89,50 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], interac
                 }]
               });
             } else if (toolToCall.name === "BASH") {
-              aiResponse.push({
-                parts: [{
-                  functionCall: {
-                    name: toolToCall.name,
-                    id: toolToCall.id,
-                    args: toolToCall.args
-                  },
-                  thoughtSignature
-                }],
-                role: "model"
-              });
+              // TODO: handle other tools here too
+              const question = `AGENT wants to run a bash command \n\n ${JSON.stringify(toolToCall.args, null, 2)} \n\n Y/N ??`;
               
-              const fn = TOOL_IMPLEMENTATIONS[toolToCall.name];
-              const response = await fn(toolToCall.args);
+              const answer = await askQuestion(question);
               
-              aiResponse.push({
+              if (answer === "N") {
+                aiResponse.push({
+                role: "user",
                 parts: [{
                   functionResponse: {
                     name: toolToCall.name,
-                    id: toolToCall.id,
-                    response
+                    response: { answer: `user do not want you to run bash command: ${JSON.stringify(toolToCall.args, null, 2)}, so avoid commands like these in future steps.` },
                   },
                   thoughtSignature
-                }],
-                role: "model"
+                }]
               });
+              } else {
+                aiResponse.push({
+                  parts: [{
+                    functionCall: {
+                      name: toolToCall.name,
+                      id: toolToCall.id,
+                      args: toolToCall.args
+                    },
+                    thoughtSignature
+                  }],
+                  role: "model"
+                });
+                
+                const fn = TOOL_IMPLEMENTATIONS[toolToCall.name];
+                const response = await fn(toolToCall.args);
+                
+                aiResponse.push({
+                  parts: [{
+                    functionResponse: {
+                      name: toolToCall.name,
+                      id: toolToCall.id,
+                      response
+                    },
+                    thoughtSignature
+                  }],
+                  role: "model"
+                });
+              }
             }
           }          
         } else if (!functionCalls && typeof event?.candidates?.[0]?.content?.parts?.[0]?.text === "string" && !event?.candidates?.[0]?.content?.parts?.[0]?.text.includes("non-text")) {
@@ -126,17 +142,16 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], interac
             parts: [{ text: textResponseAccumulated }]
           });
         } else {
-          console.log("SOMETHING CRAZY");
-          console.log(event?.candidates?.[0]?.content?.parts?.[0]?.text);
-          console.log(event?.candidates?.[0]?.content?.parts?.[0]?.functionCall); 
         }
       }
 
       console.log(textResponseAccumulated);
 
+      if (steps === MAX_STEPS) steps -= 5; // more iterations
+
       if (!functionCalls) break;
     }
-
+    
     return { aiResponse, interaction_id, success: true }
   } catch (err) {
     console.log("ERROR", err)

@@ -44,6 +44,20 @@
     rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
 }
 
+:root.pink {
+  --text: #5c3d4a;
+  --text-h: #2d0f1a;
+  --bg: #fff0f3;
+  --border: #fbcfe8;
+  --code-bg: #fce7f3;
+  --accent: #ec4899;
+  --accent-bg: rgba(236, 72, 153, 0.1);
+  --accent-border: rgba(236, 72, 153, 0.5);
+  --social-bg: rgba(252, 231, 243, 0.5);
+  --shadow:
+    rgba(236, 72, 153, 0.1) 0 10px 15px -3px, rgba(236, 72, 153, 0.05) 0 4px 6px -2px;
+}
+
 :root.dark #social .button-icon {
   filter: invert(1) brightness(2);
 }
