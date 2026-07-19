@@ -1,6 +1,6 @@
 import type { GeminiTurn, Messages } from "../types";
-import { getStoredMessages } from "../utils/session.utils";
 import fs from "fs";
+import { getStoredMessages } from "../utils/files.utils";
 
 class SessionManager {
   private static instance: SessionManager;

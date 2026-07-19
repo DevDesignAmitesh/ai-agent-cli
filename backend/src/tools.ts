@@ -1,4 +1,4 @@
-import { bash } from "./utils/files.utils";
+import { bash } from "./utils/tool.utils";
 
 export const TOOLS = [
   {

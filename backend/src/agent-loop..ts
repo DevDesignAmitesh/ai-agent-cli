@@ -3,7 +3,7 @@ import { TOOL_IMPLEMENTATIONS, TOOLS } from "./tools";
 import { AGENT_LOOP_PROMPT } from "./prompts/agent-loop-prompt";
 import { type Messages } from "./types";
 import { askQuestion, truncateResult } from "./utils/tool.utils";
-import { getSummary } from "./utils/ai.utils";
+import { getSummary, MAX_SESSION_MESSAGES } from "./utils/ai.utils";
 import { sessionManager } from "./manager/session.manager";
 
 const MAX_STEPS = 10;
@@ -28,7 +28,11 @@ export async function agentLoop(input: string, sessionId: string) {
       parts: [{ text: input }]
     })
     
+    sessionManager.setSessionMsg(sessionId, sessionMessages);
+    
     while (true) {
+      let perLlmReqToken = 0;
+      
       steps++;
             
       if (steps > MAX_STEPS) {
@@ -69,13 +73,14 @@ export async function agentLoop(input: string, sessionId: string) {
 
         if (event.usageMetadata && typeof event.usageMetadata.totalTokenCount === "number") {
           tokens += event.usageMetadata?.totalTokenCount
+          perLlmReqToken = event.usageMetadata?.totalTokenCount
         }
         
         if (event?.candidates?.[0]?.content?.parts?.[0]?.functionCall) {
           const toolToCall = event?.candidates?.[0]?.content?.parts?.[0]?.functionCall
                     
           functionCalls = true;
-
+                    
           if (toolToCall.name) {
             if (toolToCall.name === "ASK_QUESTION" || toolToCall.name === "CREATE_PLAN") {            
               sessionMessages.push({
@@ -142,7 +147,7 @@ export async function agentLoop(input: string, sessionId: string) {
                 
                 const fn = TOOL_IMPLEMENTATIONS[toolToCall.name];
                 const response = await fn(toolToCall.args);
-                
+                                
                 if (response ===  undefined) {
                   // TODO: how should we handle..
                 } else {
@@ -164,27 +169,38 @@ export async function agentLoop(input: string, sessionId: string) {
           }          
         } else if (!functionCalls && typeof event?.candidates?.[0]?.content?.parts?.[0]?.text === "string" && !event?.candidates?.[0]?.content?.parts?.[0]?.text.includes("non-text")) {
           textResponseAccumulated += event?.candidates?.[0]?.content?.parts?.[0]?.text
-          process.stdout.write(textResponseAccumulated);
         }
       }
 
-      sessionMessages.push({
-        role: "model",
-        parts: [{ text: textResponseAccumulated }]
-      });
+      // console.log("total token got used", tokens);
+      // console.log("total token per llm request", perLlmReqToken);
+      // console.log("\n\n" + textResponseAccumulated + "\n\n")
+      console.log(textResponseAccumulated)
+      console.log("functionCalls", functionCalls)
       
-      if (sessionMessages.length % 20 === 0) {
+      if (!functionCalls) {
+        sessionMessages.push({
+          role: "model",
+          parts: [{ text: textResponseAccumulated }]
+        });
+      }
+      
+      console.log("sessionMessages length", sessionMessages.length);
+      
+      // TODO: because if we somehow unable to match 20 % 10 then we will miss till 40 so thats why
+      if (sessionMessages.length % MAX_SESSION_MESSAGES === 0) {
+        console.log("summarizing")
         const summarizedMessages = await getSummary(sessionMessages);
         sessionManager.setSessionMsg(`summarized-${sessionId}`, summarizedMessages);
       } else {
-        messages[sessionId] = sessionMessages;
         sessionManager.setSessionMsg(sessionId, sessionMessages);
       }
       
       
       // STORING MESSAGES
+      // TODO: also store it in the catch block
       sessionManager.storeAllMessages(messages)
-            
+      
       if (!functionCalls) break;
     }
     
