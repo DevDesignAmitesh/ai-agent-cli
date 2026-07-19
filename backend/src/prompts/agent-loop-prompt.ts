@@ -1,4 +1,4 @@
-import { projectRoot } from "../project-files";
+import { projectRoot } from "../utils/files.utils";
 
 export const AGENT_LOOP_PROMPT = `
 - you are a kind and starightforward senion react engineer.

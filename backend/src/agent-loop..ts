@@ -1,9 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
 import { TOOL_IMPLEMENTATIONS, TOOLS } from "./tools";
 import { AGENT_LOOP_PROMPT } from "./prompts/agent-loop-prompt";
-import { type GeminiTurn, type Messages } from "./types";
-import { askQuestion, getSummary, truncateResult } from "./utils";
-import fs from "fs";
+import { type Messages } from "./types";
+import { askQuestion, truncateResult } from "./utils/tool.utils";
+import { getSummary } from "./utils/ai.utils";
+import { sessionManager } from "./manager/session.manager";
 
 const MAX_STEPS = 10;
 
@@ -15,14 +16,14 @@ const client = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-export async function agentLoop(input: string, aiResponse: GeminiTurn[], messages: Messages, sessionId: string) {
+export async function agentLoop(input: string, sessionId: string) {
   try {
     let steps = 0;
     let tokens = 0;
 
-    console.log(aiResponse);
+    const { sessionMessages } = sessionManager.getSessionMsg(sessionId);
     
-    aiResponse.push({
+    sessionMessages.push({
       role: "user",
       parts: [{ text: input }]
     })
@@ -42,13 +43,16 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], message
         }
       }
       
+      const messages: Messages = sessionManager.getAllMessages();
+      const { sessionMessages } = sessionManager.getSessionMsg(sessionId);  
+      
       let textResponseAccumulated = "";
       let stream;
       let functionCalls = false;
       
       try {
         stream = await client.models.generateContentStream({
-          contents: aiResponse,
+          contents: sessionMessages,
           model: "gemini-3.5-flash",
           config: {
             systemInstruction: AGENT_LOOP_PROMPT,
@@ -64,7 +68,6 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], message
         const thoughtSignature = event?.candidates?.[0]?.content?.parts?.[0]?.thoughtSignature;
 
         if (event.usageMetadata && typeof event.usageMetadata.totalTokenCount === "number") {
-          console.log("TOKEN_USED_PER_TURN:" + event.usageMetadata?.totalTokenCount)
           tokens += event.usageMetadata?.totalTokenCount
         }
         
@@ -75,7 +78,7 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], message
 
           if (toolToCall.name) {
             if (toolToCall.name === "ASK_QUESTION" || toolToCall.name === "CREATE_PLAN") {            
-              aiResponse.push({
+              sessionMessages.push({
                 parts: [{
                   functionCall: {
                     name: toolToCall.name,
@@ -95,7 +98,7 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], message
               // TODO: handle it more gracefully.
               if (!answer) throw new Error("user input not provided");
               
-              aiResponse.push({
+              sessionMessages.push({
                 role: "user",
                 parts: [{
                   functionResponse: {
@@ -114,7 +117,7 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], message
               const approved = answer.trim().toLowerCase() === "y";
 
               if (!approved) {
-                aiResponse.push({
+                sessionMessages.push({
                   role: "user",
                   parts: [{
                     functionResponse: {
@@ -125,7 +128,7 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], message
                   }]
                 });
               } else {
-                aiResponse.push({
+                sessionMessages.push({
                   parts: [{
                     functionCall: {
                       name: toolToCall.name,
@@ -139,17 +142,16 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], message
                 
                 const fn = TOOL_IMPLEMENTATIONS[toolToCall.name];
                 const response = await fn(toolToCall.args);
-                                
                 
                 if (response ===  undefined) {
                   // TODO: how should we handle..
                 } else {
-                  aiResponse.push({
+                  sessionMessages.push({
                     parts: [{
                       functionResponse: {
                         name: toolToCall.name,
                         id: toolToCall.id,
-                        response: truncateResult(response)
+                        response: { response: truncateResult(response) }
                       },
                       thoughtSignature
                     }],
@@ -166,35 +168,29 @@ export async function agentLoop(input: string, aiResponse: GeminiTurn[], message
         }
       }
 
-      aiResponse.push({
+      sessionMessages.push({
         role: "model",
         parts: [{ text: textResponseAccumulated }]
       });
-
-      console.log("aiResponse.length", aiResponse.length)
       
-      if (aiResponse.length % 20 === 0) {
-        console.log("SUMMARIZING")
-        const summarizedMessages = await getSummary(aiResponse);
-        messages[`summarized-${sessionId}`] = summarizedMessages;
-        aiResponse = summarizedMessages
+      if (sessionMessages.length % 20 === 0) {
+        const summarizedMessages = await getSummary(sessionMessages);
+        sessionManager.setSessionMsg(`summarized-${sessionId}`, summarizedMessages);
       } else {
-        messages[sessionId] = aiResponse;
+        messages[sessionId] = sessionMessages;
+        sessionManager.setSessionMsg(sessionId, sessionMessages);
       }
       
       
       // STORING MESSAGES
-      fs.writeFileSync("../backend/src/messages.json", JSON.stringify(messages))
-      
-      console.log("TOTAL_TOKEN_USED: " + tokens)
-
-      
+      sessionManager.storeAllMessages(messages)
+            
       if (!functionCalls) break;
     }
     
-    return { aiResponse, success: true }
+    return { success: true }
   } catch (err) {
     console.log("ERROR", err)
-    return { aiResponse, success: false }
+    return { success: false }
   }
 }
