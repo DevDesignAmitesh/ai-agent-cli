@@ -6,12 +6,12 @@ const client = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-export const MAX_SESSION_MESSAGES = 10;
+export const MAX_SESSION_MESSAGES = 20;
 
-export async function getSummary(aiResponse: GeminiTurn[]): Promise<GeminiTurn[]> {
+export async function getSummary(sessionMessages: GeminiTurn[]): Promise<GeminiTurn[]> {
   
   const res = await client.models.generateContent({
-    contents: aiResponse,
+    contents: sessionMessages,
     model: "gemini-3.5-flash",
     config: {
       systemInstruction: SUMMARIZING_PROMPT,
@@ -51,6 +51,11 @@ export async function getSummary(aiResponse: GeminiTurn[]): Promise<GeminiTurn[]
   
   const thoughtSignature = res?.candidates?.[0]?.content?.parts?.[0]?.thoughtSignature;
   
+  // keep the last three messages 
+  // we are not doing this because it messes up the TURN thing which is required in GEMINI
+  // like after functionCall there should be functioResponse but if we are removing then its messing up
+  // sessionMessages.splice(0, sessionMessages.length - 3);
+
   return [{
     parts: [
       { 
@@ -59,7 +64,7 @@ export async function getSummary(aiResponse: GeminiTurn[]): Promise<GeminiTurn[]
       }
     ],
     role: "model"
-  }]
+  }];
 }
 
 

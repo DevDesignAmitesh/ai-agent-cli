@@ -1,13 +1,13 @@
 import type { GeminiTurn, Messages } from "../types";
 import fs from "fs";
-import { getStoredMessages } from "../utils/files.utils";
+import { MESSAGES_PATH } from "../utils/tool.utils";
 
 class SessionManager {
   private static instance: SessionManager;
   private messages: Messages
 
   constructor() {
-    this.messages = getStoredMessages()
+    this.messages = this.getStoredMessages()
   }
   
   static getInstance(): SessionManager {
@@ -15,26 +15,24 @@ class SessionManager {
     return SessionManager.instance
   };
 
+  getStoredMessages() {
+    try {
+    return JSON.parse(fs.readFileSync(MESSAGES_PATH).toString())
+    } catch (e) {
+      return {}
+    }
+  }
+  
   getAllMessages() {
     return this.messages;
   }
   
-  storeAllMessages(messages: Messages) {
-    fs.writeFileSync("../backend/src/messages.json", JSON.stringify(messages))
+  storeAllMessages() {
+    fs.writeFileSync(MESSAGES_PATH, JSON.stringify(this.messages))
   }
   
   getSessionMsg(sessionId: string) {
-    let sessionMessages: GeminiTurn[];
-      
-    if (this.getSessionMessages(`summarized-${sessionId}`)) {
-      sessionMessages = this.getSessionMessages(`summarized-${sessionId}`)!
-    } else if (this.getSessionMessages(sessionId)) {
-      sessionMessages = this.getSessionMessages(sessionId)!;
-    } else {
-      sessionMessages = [];
-    }
-    
-    return { sessionMessages };
+    return this.getSessionMessages(sessionId) ?? []      
   }
   
   getMessages() {

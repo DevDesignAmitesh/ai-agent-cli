@@ -21,7 +21,7 @@ async function main(firstTime: boolean) {
   
   const res = await agentLoop(answer, sessionId);
 
-  if (!res.success) process.exit(1);
+  if (!res.success) console.log("Something went wrong with that turn - try again.");
 
   firstTimeLoop = false;
   main(firstTimeLoop)

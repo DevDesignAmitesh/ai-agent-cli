@@ -103,7 +103,7 @@ function App() {
         <div className="todo-container">
           <header className="todo-header">
             <div className="todo-header-title-row">
-              <h1>Tasks</h1>
+              <h1>Todo</h1>
               <button 
                 type="button" 
                 className="theme-toggle" 

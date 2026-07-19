@@ -7,14 +7,13 @@ import { stdin as input, stdout as output } from 'node:process';
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
 export const projectRoot = path.resolve(currentDirectory, "../../../template");
+export const MESSAGES_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../messages.json");
 
 const TIME_OUT = 10 * 1000;
 
 export async function bash({ command }: { command: string }) {
   return new Promise<{ stdout: string; stderr: string } | undefined>((resolve) => {
-    process.chdir(projectRoot);
-
-    const child = spawn("wsl", ["bash", "-lc", command]);
+    const child = spawn("wsl", ["bash", "-lc", command], { cwd: projectRoot });
     
     const timeout = setTimeout(() => {
       child.kill();

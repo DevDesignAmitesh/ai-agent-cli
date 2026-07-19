@@ -20,15 +20,7 @@ export async function agentLoop(input: string, sessionId: string) {
   try {
     let steps = 0;
     let tokens = 0;
-
-    const { sessionMessages } = sessionManager.getSessionMsg(sessionId);
-    
-    sessionMessages.push({
-      role: "user",
-      parts: [{ text: input }]
-    })
-    
-    sessionManager.setSessionMsg(sessionId, sessionMessages);
+    let firstTurn = true;
     
     while (true) {
       let perLlmReqToken = 0;
@@ -47,8 +39,16 @@ export async function agentLoop(input: string, sessionId: string) {
         }
       }
       
-      const messages: Messages = sessionManager.getAllMessages();
-      const { sessionMessages } = sessionManager.getSessionMsg(sessionId);  
+      const sessionMessages = sessionManager.getSessionMsg(sessionId);
+      
+      if (firstTurn) {
+        sessionMessages.push({
+          role: "user",
+          parts: [{ text: input }]
+        })
+        firstTurn = false;
+      }
+
       
       let textResponseAccumulated = "";
       let stream;
@@ -66,7 +66,7 @@ export async function agentLoop(input: string, sessionId: string) {
       } catch (e) {
         console.log("API ERROR", e);
         throw new Error("API ERROR");
-      }           
+      }
 
       for await (const event of stream) {
         const thoughtSignature = event?.candidates?.[0]?.content?.parts?.[0]?.thoughtSignature;
@@ -172,9 +172,8 @@ export async function agentLoop(input: string, sessionId: string) {
         }
       }
 
-      // console.log("total token got used", tokens);
-      // console.log("total token per llm request", perLlmReqToken);
-      // console.log("\n\n" + textResponseAccumulated + "\n\n")
+      console.log("total token got used", tokens);
+      console.log("total token per llm request", perLlmReqToken);
       console.log(textResponseAccumulated)
       console.log("functionCalls", functionCalls)
       
@@ -187,11 +186,10 @@ export async function agentLoop(input: string, sessionId: string) {
       
       console.log("sessionMessages length", sessionMessages.length);
       
-      // TODO: because if we somehow unable to match 20 % 10 then we will miss till 40 so thats why
-      if (sessionMessages.length % MAX_SESSION_MESSAGES === 0) {
+      if (sessionMessages.length >= MAX_SESSION_MESSAGES) {
         console.log("summarizing")
         const summarizedMessages = await getSummary(sessionMessages);
-        sessionManager.setSessionMsg(`summarized-${sessionId}`, summarizedMessages);
+        sessionManager.setSessionMsg(sessionId, summarizedMessages);
       } else {
         sessionManager.setSessionMsg(sessionId, sessionMessages);
       }
@@ -199,7 +197,7 @@ export async function agentLoop(input: string, sessionId: string) {
       
       // STORING MESSAGES
       // TODO: also store it in the catch block
-      sessionManager.storeAllMessages(messages)
+      sessionManager.storeAllMessages()
       
       if (!functionCalls) break;
     }
@@ -207,6 +205,7 @@ export async function agentLoop(input: string, sessionId: string) {
     return { success: true }
   } catch (err) {
     console.log("ERROR", err)
+    sessionManager.storeAllMessages()
     return { success: false }
   }
 }
