@@ -1,0 +1,1 @@
+{"E:\\S-30-3.0\\ai-agent-cli\\template":[{"fact":["Always use functional React components with hooks, never class components."]},{"fact":["Use functional React components with hooks.","When writing TSX components or multiline files via bash, string concatenation (e.g. 'Hello' + name) or careful escaping avoids shell variable expansion issues inside JSX template literals."]}]}

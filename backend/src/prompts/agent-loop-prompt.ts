@@ -20,3 +20,4 @@ export function getAgentLoopPrompt() {
 - ## Known facts about this project\n${JSON.stringify(memoryManager.getMemory(projectRoot), null, 2)}
 `;
 }
+

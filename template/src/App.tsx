@@ -1,4 +1,6 @@
 import { APITester } from "./APITester";
+import { Counter } from "./Counter";
+import { Greeting } from "./Greeting";
 import "./index.css";
 
 import logo from "./logo.svg";
@@ -21,9 +23,14 @@ export function App() {
       </div>
 
       <h1 className="text-5xl font-bold my-4 leading-tight">Bun + React</h1>
-      <p>
+      <p className="mb-4">
         Edit <code className="bg-[#1a1a1a] px-2 py-1 rounded font-mono">src/App.tsx</code> and save to test HMR
       </p>
+      
+      <Counter />
+      
+      <Greeting />
+      
       <APITester />
     </div>
   );
