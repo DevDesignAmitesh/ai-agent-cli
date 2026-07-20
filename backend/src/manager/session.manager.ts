@@ -17,7 +17,7 @@ class SessionManager {
 
   getStoredMessages() {
     try {
-    return JSON.parse(fs.readFileSync(MESSAGES_PATH).toString())
+      return JSON.parse(fs.readFileSync(MESSAGES_PATH).toString())
     } catch (e) {
       return {}
     }
@@ -32,15 +32,11 @@ class SessionManager {
   }
   
   getSessionMsg(sessionId: string) {
-    return this.getSessionMessages(sessionId) ?? []      
+    return this.messages[sessionId] ?? []      
   }
   
   getMessages() {
     return this.messages;
-  }
-  
-  getSessionMessages(key: string) {
-    return this.messages[key];
   }
 
   setSessionMsg(key: string, sessionMsgs: GeminiTurn[]) {

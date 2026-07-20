@@ -1,4 +1,5 @@
-import { bash } from "./utils/tool.utils";
+import { memoryManager } from "./manager/memory.manager";
+import { bash, projectRoot } from "./utils/tool.utils";
 
 export const TOOLS = [
   {
@@ -96,6 +97,43 @@ export const TOOLS = [
           required: ["summary", "plan"],
         },
       },
+      {
+        name: "SAVE_MEMORY",
+        description: `
+          Save a durable fact about this project or the user's preferences so it
+          persists across conversations, even after older messages get summarized
+          or dropped.
+
+          Use this tool when you learn something worth remembering long-term:
+          - A project convention (e.g. "use pnpm, not npm")
+          - A decision the user made that should stick
+          - A correction the user gave you that you shouldn't repeat
+
+          Do NOT use this for task-specific details that only matter for the
+          current step — only for facts that should apply going forward.
+
+          Input:
+          - fact: One or more short, standalone facts to remember.
+          - projectPath: The project this memory belongs to.
+
+          Returns: void
+        `,
+        parameters: {
+          type: "object",
+          properties: {
+            fact: {
+              type: "array",
+              items: { type: "string" },
+              description: "One or more standalone facts worth remembering long-term.",
+            },
+            projectPath: {
+              type: "string",
+              description: "The project directory this memory applies to.",
+            },
+          },
+          required: ["fact", "projectPath"],
+        },
+      },
     ],
   },
 ];
@@ -121,4 +159,8 @@ export const TOOL_IMPLEMENTATIONS = {
     return { plan, summary }
     // return plan.join(", ");
   },
+  SAVE_MEMORY: async ({ fact }: { fact: string[] }) => {
+    memoryManager.saveMemory(projectRoot, { fact });
+    return "saved"
+  }
 };

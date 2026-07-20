@@ -5,4 +5,12 @@ export type GeminiTurn = {
   parts: Part[];
 };
 
+export type Memory = {
+  fact: string[]
+}
+
+// sessionId => Messages
 export type Messages = Record<string, GeminiTurn[]>;
+
+// projectId (for now path of the project) => memories
+export type Memories = Record<string, Memory[]>;

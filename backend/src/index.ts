@@ -16,6 +16,8 @@ console.log("\nCURRENT_SESSION_ID\n", sessionId);
 
 async function main(firstTime: boolean) {
   const answer = await askQuestion(firstTime? "How can i help you? " : "Any follow up? ");
+    
+  console.log("INITIAL_PROMPT", answer);
   
   if (answer.trim().toLowerCase() === "no") process.exit(0);
   

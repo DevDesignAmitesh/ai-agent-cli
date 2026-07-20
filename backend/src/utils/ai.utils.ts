@@ -6,7 +6,7 @@ const client = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-export const MAX_SESSION_MESSAGES = 20;
+export const MAX_SESSION_MESSAGES = 30;
 
 export async function getSummary(sessionMessages: GeminiTurn[]): Promise<GeminiTurn[]> {
   

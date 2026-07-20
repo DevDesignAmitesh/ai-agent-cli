@@ -1,7 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { TOOL_IMPLEMENTATIONS, TOOLS } from "./tools";
-import { AGENT_LOOP_PROMPT } from "./prompts/agent-loop-prompt";
-import { type Messages } from "./types";
+import { getAgentLoopPrompt } from "./prompts/agent-loop-prompt";
 import { askQuestion, truncateResult } from "./utils/tool.utils";
 import { getSummary, MAX_SESSION_MESSAGES } from "./utils/ai.utils";
 import { sessionManager } from "./manager/session.manager";
@@ -21,9 +20,19 @@ export async function agentLoop(input: string, sessionId: string) {
     let steps = 0;
     let tokens = 0;
     let firstTurn = true;
+    let perLlmReqToken: number[] = [];
+    
+    const sessionMessages = sessionManager.getSessionMsg(sessionId);
+    
+    if (sessionMessages.length >= MAX_SESSION_MESSAGES) {
+      console.log("summarizing")
+      const summarizedMessages = await getSummary(sessionMessages);
+      sessionManager.setSessionMsg(sessionId, summarizedMessages);
+    } else {
+      sessionManager.setSessionMsg(sessionId, sessionMessages);
+    }
     
     while (true) {
-      let perLlmReqToken = 0;
       
       steps++;
             
@@ -59,7 +68,7 @@ export async function agentLoop(input: string, sessionId: string) {
           contents: sessionMessages,
           model: "gemini-3.5-flash",
           config: {
-            systemInstruction: AGENT_LOOP_PROMPT,
+            systemInstruction: getAgentLoopPrompt(),
             tools: TOOLS,
           }
         });
@@ -73,7 +82,7 @@ export async function agentLoop(input: string, sessionId: string) {
 
         if (event.usageMetadata && typeof event.usageMetadata.totalTokenCount === "number") {
           tokens += event.usageMetadata?.totalTokenCount
-          perLlmReqToken = event.usageMetadata?.totalTokenCount
+          perLlmReqToken.push(event.usageMetadata?.totalTokenCount)
         }
         
         if (event?.candidates?.[0]?.content?.parts?.[0]?.functionCall) {
@@ -81,6 +90,8 @@ export async function agentLoop(input: string, sessionId: string) {
                     
           functionCalls = true;
                     
+          console.log("tool getting called", toolToCall.name);
+          
           if (toolToCall.name) {
             if (toolToCall.name === "ASK_QUESTION" || toolToCall.name === "CREATE_PLAN") {            
               sessionMessages.push({
@@ -162,9 +173,35 @@ export async function agentLoop(input: string, sessionId: string) {
                     }],
                     role: "model"
                   });
-                }
-                
+                }                
               }
+            } else if (toolToCall.name === "SAVE_MEMORY") {
+                sessionMessages.push({
+                  parts: [{
+                    functionCall: {
+                      name: toolToCall.name,
+                      id: toolToCall.id,
+                      args: toolToCall.args
+                    },
+                    thoughtSignature
+                  }],
+                  role: "model"
+                });
+                
+                const fn = TOOL_IMPLEMENTATIONS[toolToCall.name];
+                const response = await fn(toolToCall.args);
+
+                sessionMessages.push({
+                  parts: [{
+                    functionResponse: {
+                      name: toolToCall.name,
+                      id: toolToCall.id,
+                      response: { response: response }
+                    },
+                    thoughtSignature
+                  }],
+                  role: "model"
+                });                                
             }
           }          
         } else if (!functionCalls && typeof event?.candidates?.[0]?.content?.parts?.[0]?.text === "string" && !event?.candidates?.[0]?.content?.parts?.[0]?.text.includes("non-text")) {
@@ -175,7 +212,6 @@ export async function agentLoop(input: string, sessionId: string) {
       console.log("total token got used", tokens);
       console.log("total token per llm request", perLlmReqToken);
       console.log(textResponseAccumulated)
-      console.log("functionCalls", functionCalls)
       
       if (!functionCalls) {
         sessionMessages.push({
@@ -186,22 +222,17 @@ export async function agentLoop(input: string, sessionId: string) {
       
       console.log("sessionMessages length", sessionMessages.length);
       
-      if (sessionMessages.length >= MAX_SESSION_MESSAGES) {
-        console.log("summarizing")
-        const summarizedMessages = await getSummary(sessionMessages);
-        sessionManager.setSessionMsg(sessionId, summarizedMessages);
-      } else {
-        sessionManager.setSessionMsg(sessionId, sessionMessages);
-      }
+      
       
       
       // STORING MESSAGES
       // TODO: also store it in the catch block
-      sessionManager.storeAllMessages()
       
       if (!functionCalls) break;
     }
     
+    sessionManager.storeAllMessages()
+
     return { success: true }
   } catch (err) {
     console.log("ERROR", err)
