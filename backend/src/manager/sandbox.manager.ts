@@ -1,13 +1,10 @@
 import type { Sandboxes } from "../types";
-import { projectRoot, sanboxRoot, SANDBOX_PATH } from "../utils/tool.utils";
+import { SANDBOX_PATH } from "../utils/tool.utils";
 import fs from "fs";
 import { Sandbox } from "e2b";
 import path from "path";
 
-const files_to_ignore = [".git", "node_modules", ".qodo","dist"];
-const E2B_API_KEY = process.env.E2B_API_KEY;
-
-if (!E2B_API_KEY) throw new Error("E2B_API_KEY not found")
+const files_to_ignore = [".git", "node_modules", ".qodo", "dist"];
 
 class SandboxManager {
   private static instance: SandboxManager;
@@ -36,6 +33,7 @@ class SandboxManager {
   
   setSandbox(sessionId: string, sandboxId: string) {
     this.sbx[sessionId] = sandboxId;
+    this.storeAllSanboxes();
   }
   
   getOrCreateSandboxId(sessionId: string): string | undefined {
@@ -46,21 +44,16 @@ class SandboxManager {
     const existingId = this.getOrCreateSandboxId(sessionId);
     
     if (existingId) {
-      return await Sandbox.connect(existingId, {
-        apiKey: E2B_API_KEY
-      });
+      console.log("returning existing sanbox");
+      return await Sandbox.connect(existingId);
     }
 
     const sandbox = await Sandbox.create({
-      apiKey: E2B_API_KEY,
       lifecycle: {
         onTimeout: "pause"
       }
     });
-    this.setSandbox(sessionId, sandbox.sandboxId);
-        
-    this.uploadDirectory(sessionId, projectRoot, sanboxRoot);
-    this.storeAllSanboxes();
+    this.setSandbox(sessionId, sandbox.sandboxId);        
     return sandbox;
   }
   
@@ -81,7 +74,33 @@ class SandboxManager {
         // Read file content and write it directly to the sandbox
         const fileContent = fs.readFileSync(localPath);
         await sbx.files.write(sandboxPath, fileContent.toString());
-        console.log(`Uploaded: ${sandboxPath}`);
+        console.log(`Uploaded: ${sandboxPath} To Sanbox`);
+      }
+    }
+  }
+  
+  saveDirectoryLocally = async (sessionId: string, localDir: string, sandboxDir: string) => {      
+    const sbx = await this.getSandbox(sessionId)
+    const files = (await sbx.files.list(sandboxDir)).map((fls) => ({ path: fls.path, type: fls.type }));
+    
+    console.log(files)
+    
+    
+    for (const [idx, { path: ph, type }] of files.entries()) {
+      const data: Record<string, string> = {};
+      
+      const localPath = path.join(localDir, ph.split(sandboxDir)[1]!)
+                
+      if (type && type === "dir") {
+        // Recursively upload subdirectories
+        await this.saveDirectoryLocally(sessionId, localDir, ph);
+      } else {
+        // Read file content and write it directly to the sandbox
+        const fileContent = await sbx.files.read(ph);
+        data[ph] = fileContent
+        fs.writeFileSync("./random.json", JSON.stringify(fileContent));
+        // fs.writeFileSync(localPath, JSON.stringify(fileContent));
+        // console.log(`Uploaded: ${localPath} To Local`);
       }
     }
   }

@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import readline from 'node:readline';
@@ -15,37 +14,45 @@ export const SANDBOX_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.
 
 const TIME_OUT = 60_1000;
 
-export async function bash({ command, sessionId }: { command: string, sessionId: string }) {
-  // running in sanbox;
-  const sandbox = await sandboxManager.getSandbox(sessionId);
-  
-  const { stderr, stdout } = await sandbox.commands.run(command, {
-    cwd: sanboxRoot,
-    timeoutMs: TIME_OUT
-  })
+type BashResult = {
+  stdout: string;
+  stderr: string;
+  error?: string;
+};
 
-  return { stderr, stdout };
-  
-  // running locally
-  // return new Promise<{ stdout: string; stderr: string } | undefined>((resolve) => {
-  //   const child = spawn("wsl", ["bash", "-lc", command], { cwd: projectRoot });
-    
-  //   const timeout = setTimeout(() => {
-  //     child.kill();
-  //     resolve(undefined)
-  //   }, TIME_OUT);
-    
-  //   let stdout = "";
-  //   let stderr = "";
+export async function bash({
+  command,
+  sessionId,
+}: {
+  command: string;
+  sessionId: string;
+}): Promise<BashResult> {
+  try {
+    const sandbox = await sandboxManager.getSandbox(sessionId);
 
-  //   child.stdout.on("data", (d) => (stdout += d));
-  //   child.stderr.on("data", (d) => (stderr += d));
+    const { stderr = "", stdout = "" } = await sandbox.commands.run(command, {
+      cwd: sanboxRoot,
+      timeoutMs: TIME_OUT,
+    });
 
-  //   child.on("close", () => {
-  //     resolve({ stdout, stderr })
-  //     clearTimeout(timeout);
-  //   });
-  // });
+    return {
+      stdout,
+      stderr,
+    };
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unknown error while executing command";
+
+    console.error("Bash execution failed:", error);
+
+    return {
+      stdout: "",
+      stderr: message,
+      error: message,
+    };
+  }
 }
 
 // for testing
@@ -63,35 +70,33 @@ export function askQuestion(question: string) {
 
 
 
-// mainly for bash tool
-export function truncateResult({ stdout, stderr }: {
-    stdout: string;
-    stderr: string;
-}) {
-  
-  let stdout_result = ""
-  let stderr_result = ""
-  
-  if (stderr !== "") {
-    const MAX_RESULT_LENGTH_ALLOWED = 3000;
-    
-    if (stderr.length <= MAX_RESULT_LENGTH_ALLOWED) return stderr;
-  
-    const kept = stderr.slice(0, MAX_RESULT_LENGTH_ALLOWED);
-    const remaining = stderr.length - MAX_RESULT_LENGTH_ALLOWED;
-    stderr_result = `${kept}\n\n[...truncated, ${remaining} more characters. Narrow your command (e.g. head/grep) if you need the rest.]`;
-  } else {
-    const MAX_RESULT_LENGTH_ALLOWED = 3000;
-    
-    if (stdout.length <= MAX_RESULT_LENGTH_ALLOWED) return stdout;
-  
-    const kept = stdout.slice(0, MAX_RESULT_LENGTH_ALLOWED);
-    const remaining = stdout.length - MAX_RESULT_LENGTH_ALLOWED;
-    stdout_result = `${kept}\n\n[...truncated, ${remaining} more characters. Narrow your command (e.g. head/grep) if you need the rest.]`;
+const MAX_RESULT_LENGTH_ALLOWED = 3000;
+
+function truncate(text: string): string {
+  if (text.length <= MAX_RESULT_LENGTH_ALLOWED) {
+    return text;
   }
-  
+
+  const kept = text.slice(0, MAX_RESULT_LENGTH_ALLOWED);
+  const remaining = text.length - MAX_RESULT_LENGTH_ALLOWED;
+
+  return `${kept} [...truncated, ${remaining} more characters. Narrow your command (e.g. head/grep) if you need the rest.]`;
+}
+
+export function truncateResult({
+  stdout = "",
+  stderr = "",
+}: Partial<BashResult>) {
+  // Usually stderr should be prioritized if an error occurred
+  if (stderr) {
+    return {
+      stdout: "",
+      stderr: truncate(stderr),
+    };
+  }
+
   return {
-    stdout: stdout_result,
-    stderr: stderr_result,
-  }
+    stdout: truncate(stdout),
+    stderr: "",
+  };
 }

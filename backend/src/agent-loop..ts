@@ -63,7 +63,7 @@ export async function agentLoop(input: string, sessionId: string) {
       try {
         stream = await client.models.generateContentStream({
           contents: sessionMessages,
-          model: "gemini-3.5-flash",
+          model: "gemini-2.5-flash",
           config: {
             systemInstruction: getAgentLoopPrompt(),
             tools: TOOLS,
