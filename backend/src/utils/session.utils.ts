@@ -1,3 +1,4 @@
+import { sandboxManager } from "../manager/sandbox.manager";
 import { askQuestion } from "./tool.utils";
 
 export async function getSessionId() {
@@ -6,6 +7,7 @@ export async function getSessionId() {
     
   if (!answer) {
     sessionId = crypto.randomUUID();
+    // await sandboxManager.uploadDirectory(sessionId);
   } else {
     sessionId = answer.trim();
   }

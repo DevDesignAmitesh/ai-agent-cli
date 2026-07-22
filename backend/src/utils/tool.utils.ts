@@ -3,35 +3,49 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import readline from 'node:readline';
 import { stdin as input, stdout as output } from 'node:process';
+import { sandboxManager } from "../manager/sandbox.manager";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
 export const projectRoot = path.resolve(currentDirectory, "../../../template");
+export const sanboxRoot = "/home/user/template";
 export const MESSAGES_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../messages.json");
 export const MEMORY_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../memory.json");
+export const SANDBOX_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../sandbox.json");
 
-const TIME_OUT = 10 * 1000;
+const TIME_OUT = 60_1000;
 
-export async function bash({ command }: { command: string }) {
-  return new Promise<{ stdout: string; stderr: string } | undefined>((resolve) => {
-    const child = spawn("wsl", ["bash", "-lc", command], { cwd: projectRoot });
+export async function bash({ command, sessionId }: { command: string, sessionId: string }) {
+  // running in sanbox;
+  const sandbox = await sandboxManager.getSandbox(sessionId);
+  
+  const { stderr, stdout } = await sandbox.commands.run(command, {
+    cwd: sanboxRoot,
+    timeoutMs: TIME_OUT
+  })
+
+  return { stderr, stdout };
+  
+  // running locally
+  // return new Promise<{ stdout: string; stderr: string } | undefined>((resolve) => {
+  //   const child = spawn("wsl", ["bash", "-lc", command], { cwd: projectRoot });
     
-    const timeout = setTimeout(() => {
-      child.kill();
-      resolve(undefined)
-    }, TIME_OUT);
+  //   const timeout = setTimeout(() => {
+  //     child.kill();
+  //     resolve(undefined)
+  //   }, TIME_OUT);
     
-    let stdout = "";
-    let stderr = "";
+  //   let stdout = "";
+  //   let stderr = "";
 
-    child.stdout.on("data", (d) => (stdout += d));
-    child.stderr.on("data", (d) => (stderr += d));
+  //   child.stdout.on("data", (d) => (stdout += d));
+  //   child.stderr.on("data", (d) => (stderr += d));
 
-    child.on("close", () => {
-      resolve({ stdout, stderr })
-      clearTimeout(timeout);
-    });
-  });
+  //   child.on("close", () => {
+  //     resolve({ stdout, stderr })
+  //     clearTimeout(timeout);
+  //   });
+  // });
 }
 
 // for testing
@@ -55,8 +69,8 @@ export function truncateResult({ stdout, stderr }: {
     stderr: string;
 }) {
   
-  let result_one = ""
-  let result_two = ""
+  let stdout_result = ""
+  let stderr_result = ""
   
   if (stderr !== "") {
     const MAX_RESULT_LENGTH_ALLOWED = 3000;
@@ -65,7 +79,7 @@ export function truncateResult({ stdout, stderr }: {
   
     const kept = stderr.slice(0, MAX_RESULT_LENGTH_ALLOWED);
     const remaining = stderr.length - MAX_RESULT_LENGTH_ALLOWED;
-    result_one = `${kept}\n\n[...truncated, ${remaining} more characters. Narrow your command (e.g. head/grep) if you need the rest.]`;
+    stderr_result = `${kept}\n\n[...truncated, ${remaining} more characters. Narrow your command (e.g. head/grep) if you need the rest.]`;
   } else {
     const MAX_RESULT_LENGTH_ALLOWED = 3000;
     
@@ -73,11 +87,11 @@ export function truncateResult({ stdout, stderr }: {
   
     const kept = stdout.slice(0, MAX_RESULT_LENGTH_ALLOWED);
     const remaining = stdout.length - MAX_RESULT_LENGTH_ALLOWED;
-    result_two = `${kept}\n\n[...truncated, ${remaining} more characters. Narrow your command (e.g. head/grep) if you need the rest.]`;
+    stdout_result = `${kept}\n\n[...truncated, ${remaining} more characters. Narrow your command (e.g. head/grep) if you need the rest.]`;
   }
   
   return {
-    stdout: result_one,
-    stderr: result_two,
+    stdout: stdout_result,
+    stderr: stderr_result,
   }
 }

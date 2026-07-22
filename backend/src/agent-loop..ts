@@ -28,12 +28,9 @@ export async function agentLoop(input: string, sessionId: string) {
       console.log("summarizing")
       const summarizedMessages = await getSummary(sessionMessages);
       sessionManager.setSessionMsg(sessionId, summarizedMessages);
-    } else {
-      sessionManager.setSessionMsg(sessionId, sessionMessages);
     }
     
     while (true) {
-      
       steps++;
             
       if (steps > MAX_STEPS) {
@@ -157,7 +154,7 @@ export async function agentLoop(input: string, sessionId: string) {
                 });
                 
                 const fn = TOOL_IMPLEMENTATIONS[toolToCall.name];
-                const response = await fn(toolToCall.args);
+                const response = await fn({ command: toolToCall.args.command, sessionId });
                                 
                 if (response ===  undefined) {
                   // TODO: how should we handle..
@@ -222,17 +219,13 @@ export async function agentLoop(input: string, sessionId: string) {
       
       console.log("sessionMessages length", sessionMessages.length);
       
-      
-      
-      
       // STORING MESSAGES
-      // TODO: also store it in the catch block
+      sessionManager.setSessionMsg(sessionId, sessionMessages);
       
       if (!functionCalls) break;
     }
     
     sessionManager.storeAllMessages()
-
     return { success: true }
   } catch (err) {
     console.log("ERROR", err)
