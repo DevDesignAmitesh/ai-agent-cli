@@ -1,4 +1,4 @@
-import { agentLoop } from './agent-loop.';
+import { agentLoop } from './agent-loop';
 import { sandboxManager } from './manager/sandbox.manager';
 import { sessionManager } from './manager/session.manager';
 import { type Messages } from './types';
@@ -20,14 +20,14 @@ if (projectDir) {
 console.log("\nCURRENT_SESSION_ID\n", sessionId);
 
 async function main(firstTime: boolean) {
-  const answer = await askQuestion(firstTime? "How can i help you? " : "Any follow up? ");
-    
-  console.log("INITIAL_PROMPT", answer);
-  
   if (!firstTime && projectDir) {
     await sandboxManager.saveDirectoryLocally(sessionId, projectDir, sanboxRoot)
   }
 
+  const answer = await askQuestion(firstTime ? "How can i help you? " : "Any follow up? ");
+    
+  console.log("INITIAL_PROMPT", answer);
+  
   if (answer.trim().toLowerCase() === "no") process.exit(0);
   
   const res = await agentLoop(answer, sessionId);

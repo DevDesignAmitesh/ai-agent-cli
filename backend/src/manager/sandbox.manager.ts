@@ -86,21 +86,23 @@ class SandboxManager {
     console.log(files)
     
     
-    for (const [idx, { path: ph, type }] of files.entries()) {
-      const data: Record<string, string> = {};
+    // just for testing.
+    // const data: Record<string, string> = {};
+    
+    for (const { path: ph, type } of files) {
       
       const localPath = path.join(localDir, ph.split(sandboxDir)[1]!)
-                
+      
       if (type && type === "dir") {
         // Recursively upload subdirectories
         await this.saveDirectoryLocally(sessionId, localDir, ph);
       } else {
         // Read file content and write it directly to the sandbox
         const fileContent = await sbx.files.read(ph);
-        data[ph] = fileContent
-        fs.writeFileSync("./random.json", JSON.stringify(fileContent));
-        // fs.writeFileSync(localPath, JSON.stringify(fileContent));
-        // console.log(`Uploaded: ${localPath} To Local`);
+        // data[localPath] = fileContent
+        // fs.writeFileSync("./random.json", JSON.stringify(data));
+        fs.writeFileSync(localPath, fileContent);
+        console.log(`Uploaded: ${localPath} To Local`);
       }
     }
   }

@@ -1,7 +1,7 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import readline from 'node:readline';
-import { stdin as input, stdout as output } from 'node:process';
+import path from "path";
+import { fileURLToPath } from "url";
+import readline from 'readline';
+import { stdin as input, stdout as output } from 'process';
 import { sandboxManager } from "../manager/sandbox.manager";
 
 const currentFile = fileURLToPath(import.meta.url);
