@@ -4,6 +4,7 @@ import { getAgentLoopPrompt } from "./prompts/agent-loop-prompt";
 import { askQuestion, truncateResult } from "./utils/tool.utils";
 import { getSummary, MAX_SESSION_MESSAGES } from "./utils/ai.utils";
 import { sessionManager } from "./manager/session.manager";
+import { multiProvider } from "./ai-providers/multiProvider";
 
 const MAX_STEPS = 10;
 
@@ -15,7 +16,7 @@ const client = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-export async function agentLoop(input: string, sessionId: string) {
+export async function agentLoop(input: string, sessionId: string, isThereFileChanges: boolean) {
   try {
     let steps = 0;
     let tokens = 0;
@@ -69,6 +70,25 @@ export async function agentLoop(input: string, sessionId: string) {
             tools: TOOLS,
           }
         });
+        
+        const userProvidedProvider = ""
+        
+        // TODO: we should return 
+        // { toolToCall, text (which is getting streamed), functionCall: boolean, thoughtSignature (for gemini) }
+        // const { payload } = await multiProvider({
+        //   provider: "gemini",
+        //   payload: {
+        //     contents: sessionMessages,
+        //     model: "gemini-3.5-flash",
+        //     config: {
+        //       systemInstruction: getAgentLoopPrompt(),
+        //       tools: TOOLS,
+        //     }
+        //   }
+        // });
+        
+        // const {  } = payload
+        
       } catch (e) {
         console.log("API ERROR", e);
         throw new Error("API ERROR");
@@ -141,6 +161,8 @@ export async function agentLoop(input: string, sessionId: string) {
                   }]
                 });
               } else {
+                isThereFileChanges = true;
+
                 sessionMessages.push({
                   parts: [{
                     functionCall: {

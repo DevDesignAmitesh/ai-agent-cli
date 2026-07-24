@@ -51,11 +51,6 @@ export async function getSummary(sessionMessages: GeminiTurn[]): Promise<GeminiT
   
   const thoughtSignature = res?.candidates?.[0]?.content?.parts?.[0]?.thoughtSignature;
   
-  // keep the last three messages 
-  // we are not doing this because it messes up the TURN thing which is required in GEMINI
-  // like after functionCall there should be functioResponse but if we are removing then its messing up
-  // sessionMessages.splice(0, sessionMessages.length - 3);
-
   return [{
     parts: [
       { 
@@ -66,6 +61,3 @@ export async function getSummary(sessionMessages: GeminiTurn[]): Promise<GeminiT
     role: "model"
   }];
 }
-
-
-

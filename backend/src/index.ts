@@ -20,7 +20,9 @@ if (projectDir) {
 console.log("\nCURRENT_SESSION_ID\n", sessionId);
 
 async function main(firstTime: boolean) {
-  if (!firstTime && projectDir) {
+  let isThereFileChanges = false;
+
+  if (!firstTime && projectDir && isThereFileChanges) {
     await sandboxManager.saveDirectoryLocally(sessionId, projectDir, sanboxRoot)
   }
 
@@ -30,10 +32,9 @@ async function main(firstTime: boolean) {
   
   if (answer.trim().toLowerCase() === "no") process.exit(0);
   
-  const res = await agentLoop(answer, sessionId);
+  const res = await agentLoop(answer, sessionId, isThereFileChanges);
 
   if (!res.success) console.log("Something went wrong with that turn - try again.");
-
   firstTimeLoop = false;
   main(firstTimeLoop)
 };
