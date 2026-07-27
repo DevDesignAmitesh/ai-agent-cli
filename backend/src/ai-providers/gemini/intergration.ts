@@ -1,5 +1,5 @@
-import { GoogleGenAI, type FunctionCall } from "@google/genai";
-import type { MultiProvidersPayload, MultiProvidersResponse } from "../../types";
+import { GoogleGenAI, } from "@google/genai";
+import type { FunctionCall, MultiProvidersPayload, MultiProvidersResponse } from "../../types";
 
 if (!process.env.GEMINI_API_KEY) {
   throw new Error("process.env.GEMINI_API_KEY not found")
@@ -11,7 +11,16 @@ const client = new GoogleGenAI({
 });
 
 export async function geminiIntegration(data: MultiProvidersPayload): Promise<MultiProvidersResponse> {  
-  const stream = await client.models.generateContentStream(data.payload);
+  if (data.provider !== "gemini") throw new Error("satisfying TS");
+
+  const { contents, model, config }= data;
+  
+  const stream = await client.models.generateContentStream({
+    contents, 
+    model, 
+    config
+  });
+  
   let totalToken = 0;
   let toolToCall: FunctionCall | undefined;
   let streamingText: string | undefined;
@@ -30,18 +39,17 @@ export async function geminiIntegration(data: MultiProvidersPayload): Promise<Mu
       moreFunctionCall = true;
     } else if (!moreFunctionCall && typeof event?.candidates?.[0]?.content?.parts?.[0]?.text === "string" && !event?.candidates?.[0]?.content?.parts?.[0]?.text.includes("non-text")) {
       streamingText += event?.candidates?.[0]?.content?.parts?.[0]?.text
+      // TODO: stream it.
     }
   }
 
   return {
-    provider: "gemini",
-    payload: {
-      moreFunctionCall,
-      streamingText,
-      toolToCall,
-      totalToken,
-      thoughtSignature
-    }
+    // provider: "gemini",
+    moreFunctionCall,
+    streamingText,
+    toolToCall,
+    totalToken,
+    thoughtSignature
   }
   
 }

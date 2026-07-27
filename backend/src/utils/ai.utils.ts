@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import type { GeminiTurn } from "../types";
+import type { MessageType } from "../types";
 import { SUMMARIZING_PROMPT } from "../prompts/summarize-prompt";
 
 const client = new GoogleGenAI({
@@ -8,15 +8,16 @@ const client = new GoogleGenAI({
 
 export const MAX_SESSION_MESSAGES = 30;
 
-export async function getSummary(sessionMessages: GeminiTurn[]): Promise<GeminiTurn[]> {
+// TODO: add model based summarization
+
+export async function getSummary(sessionMessages: MessageType): Promise<MessageType> {
   
   const res = await client.models.generateContent({
-    contents: sessionMessages,
+    contents: sessionMessages.gemini,
     model: "gemini-3.5-flash",
     config: {
       systemInstruction: SUMMARIZING_PROMPT,
       responseMimeType: "application/json",
-
       responseSchema: {
         type: "object",
 
@@ -51,13 +52,16 @@ export async function getSummary(sessionMessages: GeminiTurn[]): Promise<GeminiT
   
   const thoughtSignature = res?.candidates?.[0]?.content?.parts?.[0]?.thoughtSignature;
   
-  return [{
-    parts: [
-      { 
-        text: res?.candidates?.[0]?.content?.parts?.[0]?.text, 
-        thoughtSignature
-      }
-    ],
-    role: "model"
-  }];
+  return {
+    gemini: [{
+      parts: [
+        { 
+          text: res?.candidates?.[0]?.content?.parts?.[0]?.text, 
+          thoughtSignature
+        }
+      ],
+      role: "model"
+    }],
+    openai: []
+  };
 }

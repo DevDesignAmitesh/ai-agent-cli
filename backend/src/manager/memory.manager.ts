@@ -16,11 +16,12 @@ class MemoryManager {
   }
 
   getStoredMemories() {
-    try {
-      return JSON.parse(fs.readFileSync(MEMORY_PATH).toString())
-    } catch (e) {
-      return {}
-    }
+    return {}
+    // try {
+    //   return JSON.parse(fs.readFileSync(MEMORY_PATH).toString())
+    // } catch (e) {
+    //   return {}
+    // }
   }
 
   saveMemory(key: string, memory: Memory) {
@@ -38,7 +39,7 @@ class MemoryManager {
   }
 
   saveAllMemory() {
-    fs.writeFileSync(MEMORY_PATH, JSON.stringify(this.memory))
+    // fs.writeFileSync(MEMORY_PATH, JSON.stringify(this.memory))
   }
 }
 

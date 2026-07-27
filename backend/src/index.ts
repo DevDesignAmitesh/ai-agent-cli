@@ -1,9 +1,8 @@
 import { agentLoop } from './agent-loop';
-import { sandboxManager } from './manager/sandbox.manager';
 import { sessionManager } from './manager/session.manager';
 import { type Messages } from './types';
 import { getSessionId } from './utils/session.utils';
-import { askQuestion, sanboxRoot } from './utils/tool.utils';
+import { askQuestion } from './utils/tool.utils';
 
 let firstTimeLoop = true;
 
@@ -11,30 +10,22 @@ const messages: Messages = sessionManager.getMessages();
 
 console.log("ALL_SESSION_IDs", Object.keys(messages));
 
-const { sessionId, projectDir } = await getSessionId();
-
-if (projectDir) {
-  await sandboxManager.uploadDirectory(sessionId, projectDir, sanboxRoot)
-}
+const { sessionId } = await getSessionId();
 
 console.log("\nCURRENT_SESSION_ID\n", sessionId);
 
 async function main(firstTime: boolean) {
   let isThereFileChanges = false;
 
-  if (!firstTime && projectDir && isThereFileChanges) {
-    await sandboxManager.saveDirectoryLocally(sessionId, projectDir, sanboxRoot)
-  }
 
   const answer = await askQuestion(firstTime ? "How can i help you? " : "Any follow up? ");
     
-  console.log("INITIAL_PROMPT", answer);
-  
   if (answer.trim().toLowerCase() === "no") process.exit(0);
   
-  const res = await agentLoop(answer, sessionId, isThereFileChanges);
+  const res = await agentLoop(answer, sessionId, isThereFileChanges, "openai");
 
   if (!res.success) console.log("Something went wrong with that turn - try again.");
+
   firstTimeLoop = false;
   main(firstTimeLoop)
 };

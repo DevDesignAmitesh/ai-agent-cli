@@ -1,4 +1,4 @@
-import type { GeminiTurn, Messages } from "../types";
+import type { Messages, MessageType } from "../types";
 import fs from "fs";
 import { MESSAGES_PATH } from "../utils/tool.utils";
 
@@ -16,11 +16,12 @@ class SessionManager {
   };
 
   getStoredMessages() {
-    try {
-      return JSON.parse(fs.readFileSync(MESSAGES_PATH).toString())
-    } catch (e) {
-      return {}
-    }
+    return {}
+    // try {
+    //   return JSON.parse(fs.readFileSync(MESSAGES_PATH).toString())
+    // } catch (e) {
+    //   return {}
+    // }
   }
   
   getAllMessages() {
@@ -28,18 +29,21 @@ class SessionManager {
   }
   
   storeAllMessages() {
-    fs.writeFileSync(MESSAGES_PATH, JSON.stringify(this.messages))
+    // fs.writeFileSync(MESSAGES_PATH, JSON.stringify(this.messages))
   }
   
-  getSessionMsg(sessionId: string) {
-    return this.messages[sessionId] ?? []      
+  getSessionMsg(sessionId: string): MessageType {
+    return this.messages[sessionId] ?? {
+      gemini: [],
+      openai: []
+    }    
   }
   
   getMessages() {
     return this.messages;
   }
 
-  setSessionMsg(key: string, sessionMsgs: GeminiTurn[]) {
+  setSessionMsg(key: string, sessionMsgs: MessageType) {
     this.messages[key] = sessionMsgs;
   }
 
