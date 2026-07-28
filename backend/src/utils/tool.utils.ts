@@ -2,17 +2,13 @@ import path from "path";
 import { fileURLToPath } from "url";
 import readline from 'readline';
 import { stdin as input, stdout as output } from 'process';
-import { sandboxManager } from "../manager/sandbox.manager";
+import { spawn } from "child_process";
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
 export const projectRoot = path.resolve(currentDirectory, "../../../template");
-export const sanboxRoot = "/home/user/template";
 export const MESSAGES_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../messages.json");
 export const MEMORY_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../memory.json");
-export const SANDBOX_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../sandbox.json");
-
-const TIME_OUT = 60_1000;
 
 type BashResult = {
   stdout: string;
@@ -22,37 +18,20 @@ type BashResult = {
 
 export async function bash({
   command,
-  sessionId,
 }: {
   command: string;
-  sessionId: string;
-}): Promise<BashResult> {
-  try {
-    const sandbox = await sandboxManager.getSandbox(sessionId);
+}) {
+  return new Promise<{ stdout: string; stderr: string }>((resolve) => {
+    const child = spawn("wsl", ["bash", "-lc", command], { cwd: projectRoot });
 
-    const { stderr = "", stdout = "" } = await sandbox.commands.run(command, {
-      cwd: sanboxRoot,
-      timeoutMs: TIME_OUT,
-    });
+    let stdout = "";
+    let stderr = "";
 
-    return {
-      stdout,
-      stderr,
-    };
-  } catch (error: unknown) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Unknown error while executing command";
+    child.stdout.on("data", (d) => (stdout += d));
+    child.stderr.on("data", (d) => (stderr += d));
 
-    console.error("Bash execution failed:", error);
-
-    return {
-      stdout: "",
-      stderr: message,
-      error: message,
-    };
-  }
+    child.on("close", () => resolve({ stdout, stderr }));
+  });
 }
 
 // for testing
