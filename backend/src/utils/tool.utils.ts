@@ -7,11 +7,8 @@ import { spawn } from "child_process";
 const currentFile = fileURLToPath(import.meta.url);
 const currentDirectory = path.dirname(currentFile);
 export const projectRoot = path.resolve(currentDirectory, "../../../template");
-export const sanboxRoot = "/home/user/template";
 export const MESSAGES_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../messages.json");
 export const MEMORY_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../memory.json");
-
-const TIME_OUT = 60_1000;
 
 type BashResult = {
   stdout: string;

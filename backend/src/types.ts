@@ -1,4 +1,5 @@
 import { type GenerateContentConfig, type Part } from "@google/genai";
+import { z } from "zod";
 
 export type FunctionCall =  {
     /** Optional. The unique id of the function call. If populated, the client to execute the `function_call` and return the response with the matching `id`. */
@@ -89,3 +90,21 @@ export type MultiProvidersResponse = {
   moreFunctionCall: boolean,
   thoughtSignature?: string
 }
+
+export const ConversationSummarySchema = z.object({
+  summary: z
+    .string()
+    .describe("A concise summary of the conversation so far"),
+
+  keyPoints: z
+    .array(
+      z.string()
+    )
+    .describe("Important facts, decisions, and context from the conversation"),
+
+  currentTask: z
+    .string()
+    .describe("The task or problem the user is currently working on"),
+});
+
+export type ConversationSummary = z.infer<typeof ConversationSummarySchema>;

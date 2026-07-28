@@ -45,6 +45,8 @@ export async function agentLoop(input: string, sessionId: string, isThereFileCha
       
       const sessionMessages = sessionManager.getSessionMsg(sessionId);
 
+      console.log(JSON.stringify(sessionMessages, null, 2))
+      
       if (firstTurn) {
         sessionMessages.gemini.push({
           role: "user",
@@ -90,7 +92,7 @@ export async function agentLoop(input: string, sessionId: string, isThereFileCha
               },
               ...sessionMessages.openai
             ],
-            model: "gpt-5.4-mini",
+            model: "chatgpt-4o-latest",
             tools: OPENAI_TOOLS,
           });
         } else {
@@ -225,13 +227,11 @@ export async function agentLoop(input: string, sessionId: string, isThereFileCha
               `,
               role: "system"
             });
-            
-            console.log("toolToCall", JSON.stringify(toolToCall));
-            
+                        
             const fn = TOOL_IMPLEMENTATIONS[toolToCall.name];
             const response = await fn({ command: toolToCall.args.command, sessionId });
-                            
-            console.log("response", response);
+                                        
+            console.log(truncateResult(response));
             
             sessionMessages.gemini.push({
               parts: [{
