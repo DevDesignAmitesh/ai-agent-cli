@@ -1,19 +1,20 @@
 import type { FunctionCall, MultiProvidersPayload, MultiProvidersResponse } from "../../types";
 import { OpenAI } from "openai";
-
-const openai = new OpenAI();
+import { wrapOpenAI, init, flush, shutdown,  } from "neatlogs";
 
 export async function openaiIntegration(data: MultiProvidersPayload): Promise<MultiProvidersResponse> {  
   if (data.provider !== "openai") throw new Error("satisfying TS");
-
+  
   let moreFunctionCall: boolean = false;
-  let streamingText: string = ""
-  let totalToken: number = 0
+  let streamingText: string = "";
+  let totalToken: number = 0;
   let toolToCall: FunctionCall | undefined;
-
+  
   const { input, model, tools } = data;
   
-  const stream = await openai.responses.create({ input, model: "gpt-5.6", tools, stream: true });
+  const openai = wrapOpenAI(new OpenAI());
+  
+  const stream = await openai.responses.create({ input, model, tools, stream: true });
 
   for await (const event of stream) {
     if (event.type === "response.output_text.delta") {
@@ -31,6 +32,9 @@ export async function openaiIntegration(data: MultiProvidersPayload): Promise<Mu
     }
   }
 
+  // await flush();
+  // await shutdown();
+  
   return {
     moreFunctionCall,
     totalToken,

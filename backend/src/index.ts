@@ -3,6 +3,7 @@ import { sessionManager } from './manager/session.manager';
 import { type Messages } from './types';
 import { getSessionId } from './utils/session.utils';
 import { askQuestion } from './utils/tool.utils';
+import { init, flush, shutdown, span } from 'neatlogs';
 
 let firstTimeLoop = true;
 
@@ -14,20 +15,36 @@ const { sessionId } = await getSessionId();
 
 console.log("\nCURRENT_SESSION_ID\n", sessionId);
 
+await init({ apiKey: process.env.NEATLOGS_API_KEY, workflowName: 'ai-agent-cli' });
+
 async function main(firstTime: boolean) {
-  let isThereFileChanges = false;
-
-
-  const answer = await askQuestion(firstTime ? "How can i help you? " : "Any follow up? ");
+  return new Promise<void | string>(async (res, rej) => {
+    let isThereFileChanges = false;
+    const answer = await askQuestion(firstTime ? "How can i help you? " : "Any follow up? ");
+      
+    if (answer.trim().toLowerCase() === "no") {      
+      res();
+    }
+      
+    const runAgentLoop = span({ kind: 'WORKFLOW', name: 'my_agent_loop' }, async (initialQuery: string) => {
+      return await agentLoop(initialQuery, sessionId, isThereFileChanges, "openai");
+    });
     
-  if (answer.trim().toLowerCase() === "no") process.exit(0);
+    const agentLoopResponse = await runAgentLoop(answer);
   
-  const res = await agentLoop(answer, sessionId, isThereFileChanges, "openai");
-
-  if (!res.success) console.log("Something went wrong with that turn - try again.");
-
-  firstTimeLoop = false;
-  main(firstTimeLoop)
+    if (!agentLoopResponse.success) console.log("Something went wrong with that turn - try again.");
+  
+    firstTimeLoop = false;
+    main(firstTimeLoop)
+  })
 };
 
-main(firstTimeLoop);
+main(firstTimeLoop)
+  .then(async () => {
+    await flush();
+    await shutdown();
+  })
+  .catch(async () => {
+    await flush();
+    await shutdown();
+  })

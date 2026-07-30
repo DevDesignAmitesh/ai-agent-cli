@@ -92,7 +92,7 @@ export async function agentLoop(input: string, sessionId: string, isThereFileCha
               },
               ...sessionMessages.openai
             ],
-            model: "chatgpt-4o-latest",
+            model: "gpt-5.6",
             tools: OPENAI_TOOLS,
           });
         } else {

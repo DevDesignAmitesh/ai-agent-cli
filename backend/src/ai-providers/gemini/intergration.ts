@@ -1,19 +1,14 @@
 import { GoogleGenAI, } from "@google/genai";
 import type { FunctionCall, MultiProvidersPayload, MultiProvidersResponse } from "../../types";
+import { wrapGoogleGenAI, init, flush, shutdown } from 'neatlogs';
 
-if (!process.env.GEMINI_API_KEY) {
-  throw new Error("process.env.GEMINI_API_KEY not found")
-}
-
-
-const client = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
 
 export async function geminiIntegration(data: MultiProvidersPayload): Promise<MultiProvidersResponse> {  
   if (data.provider !== "gemini") throw new Error("satisfying TS");
-
+  
   const { contents, model, config }= data;
+  
+  const client = wrapGoogleGenAI(new GoogleGenAI({}));
   
   const stream = await client.models.generateContentStream({
     contents, 
@@ -42,7 +37,10 @@ export async function geminiIntegration(data: MultiProvidersPayload): Promise<Mu
       // TODO: stream it.
     }
   }
-
+  
+  // await flush();
+  // await shutdown();
+  
   return {
     // provider: "gemini",
     moreFunctionCall,
