@@ -15,7 +15,6 @@
   "dependencies": {
     "@google/genai": "^2.12.0",
     "e2b": "^2.35.0",
-    "neatlogs": "^1.1.12",
     "openai": "^6.49.0",
     "zod": "^4.4.3"
   }

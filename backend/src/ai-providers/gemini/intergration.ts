@@ -1,6 +1,5 @@
 import { GoogleGenAI, } from "@google/genai";
 import type { FunctionCall, MultiProvidersPayload, MultiProvidersResponse } from "../../types";
-import { wrapGoogleGenAI, init, flush, shutdown } from 'neatlogs';
 
 
 export async function geminiIntegration(data: MultiProvidersPayload): Promise<MultiProvidersResponse> {  
@@ -8,7 +7,7 @@ export async function geminiIntegration(data: MultiProvidersPayload): Promise<Mu
   
   const { contents, model, config }= data;
   
-  const client = wrapGoogleGenAI(new GoogleGenAI({}));
+  const client = new GoogleGenAI({});
   
   const stream = await client.models.generateContentStream({
     contents, 
@@ -34,12 +33,8 @@ export async function geminiIntegration(data: MultiProvidersPayload): Promise<Mu
       moreFunctionCall = true;
     } else if (!moreFunctionCall && typeof event?.candidates?.[0]?.content?.parts?.[0]?.text === "string" && !event?.candidates?.[0]?.content?.parts?.[0]?.text.includes("non-text")) {
       streamingText += event?.candidates?.[0]?.content?.parts?.[0]?.text
-      // TODO: stream it.
     }
   }
-  
-  // await flush();
-  // await shutdown();
   
   return {
     // provider: "gemini",

@@ -10,20 +10,23 @@ import { TOOLS as OPENAI_TOOLS } from "./ai-providers/openai/tools";
 
 const MAX_STEPS = 10;
 
-if (!process.env.GEMINI_API_KEY) {
-  throw new Error("process.env.GEMINI_API_KEY not found")
+if (!process.env.GEMINI_API_KEY || !process.env.OPENAI_API_KEY) {
+  throw new Error("GEMINI_API_KEY or OPENAI_API_KEY not found")
 }
 
-export async function agentLoop(input: string, sessionId: string, isThereFileChanges: boolean, userSpecifiedProvider: providers) {
+export async function agentLoop(input: string, sessionId: string, userSpecifiedProvider: providers) {
   try {
+    // tracking number of time loop runs
     let steps = 0;
+    // total tokens in each run
     let tokens = 0;
+    // tracking for the first time
     let firstTurn = true;
     
     const sessionMessages = sessionManager.getSessionMsg(sessionId);
     
     if (sessionMessages[userSpecifiedProvider].length >= MAX_SESSION_MESSAGES) {
-      console.log("summarizing")
+      console.log("summarizing the conversation")
       const summarizedMessages = await getSummary(sessionMessages, userSpecifiedProvider);
       sessionManager.setSessionMsg(sessionId, summarizedMessages);
     }
@@ -35,17 +38,16 @@ export async function agentLoop(input: string, sessionId: string, isThereFileCha
         const answer = await askQuestion(
           `Agent has used ${MAX_STEPS} steps without finishing. Continue? (y/n) `
         );
+
         if (answer.trim().toLowerCase() === "y") {
           steps = 0;
           continue;
         } else {
-          break;
+          throw new Error("MAX_STEPS reached.")
         }
       }
       
       const sessionMessages = sessionManager.getSessionMsg(sessionId);
-
-      console.log(JSON.stringify(sessionMessages, null, 2))
       
       if (firstTurn) {
         sessionMessages.gemini.push({
@@ -64,11 +66,10 @@ export async function agentLoop(input: string, sessionId: string, isThereFileCha
       }
 
       let textResponseAccumulated = "";
-      // let stream;
       let functionCalls = false;
       let dataFromMultiProvider: MultiProvidersResponse | null;
       let toolToCall: FunctionCall | undefined;
-      // for gemini mostly (will be used in the messages)
+      // for gemini mostly (will be stored in the message history)
       let thoughtSignature: string | undefined;
 
       try {
@@ -104,8 +105,10 @@ export async function agentLoop(input: string, sessionId: string, isThereFileCha
         throw new Error("API ERROR");
       }
 
-      if (dataFromMultiProvider === null) throw new Error("satisfying TS");
-      
+      if (dataFromMultiProvider === null) {
+        throw new Error("Unable to get respone from llm providers");
+      }
+
       const { 
         moreFunctionCall, 
         totalToken, 
@@ -124,62 +127,32 @@ export async function agentLoop(input: string, sessionId: string, isThereFileCha
       
       if (toolCall) {
         toolToCall = toolCall
+        console.log("\n\ncalling", toolCall.name)
       }
 
       tokens = totalToken;
+      
       functionCalls = moreFunctionCall;
       
-      if (toolToCall && toolToCall.name) {
-        if (toolToCall.name === "ASK_QUESTION" || toolToCall.name === "CREATE_PLAN") {            
-          sessionMessages.gemini.push({
-            parts: [{
-              functionCall: {
-                name: toolToCall.name,
-                id: toolToCall.id,
-                args: toolToCall.args
-              },
-              thoughtSignature
-            }],
-            role: "model"
-          });
+      // refractored (total 100 lines)
+      if (toolToCall && functionCalls) {
+        const { name, args, id } = toolToCall;
 
-          sessionMessages.openai.push({
-            content: `
-              <TOOL_TO_USE>
-                ${JSON.stringify(toolToCall)}
-              <TOOL_TO_USE>
-            `,
-            role: "system"
-          });
-          
-          // TODO: handle other tools here too
-          const question = `\n\n${toolToCall.name === "ASK_QUESTION" ? `kindly answer these questions\n\n ${JSON.stringify(toolToCall.args)}\n\n` : `kindly approve the plan or let us know the issues with the plan\n\n ${JSON.stringify(toolToCall.args)}`}\n\n`;
+        let response;
+        
+        if (name === "ASK_QUESTION" || name === "CREATE_PLAN") {
+          const question = `\n\n${name === "ASK_QUESTION" 
+            ? `kindly answer these questions\n\n ${JSON.stringify(toolToCall.args)}\n\n` 
+            : `kindly approve the plan or let us know the issues with the plan\n\n ${JSON.stringify(toolToCall.args)}`}\n\n`;
           
           const answer = await askQuestion(question);
           
-          // TODO: handle it more gracefully.
-          if (!answer) throw new Error("user input not provided");
+          if (!answer) {
+            throw new Error("tool interrupted")
+          }
           
-          sessionMessages.gemini.push({
-            role: "user",
-            parts: [{
-              functionResponse: {
-                name: toolToCall.name,
-                response: { answer },
-              },
-              thoughtSignature
-            }]
-          });
-          sessionMessages.openai.push({
-            role: "user",
-            content: `
-              <TOOL_RESPONSE>
-                ${JSON.stringify(answer)}
-              <TOOL_RESPONSE>
-            `,
-          });
-        } else if (toolToCall.name === "BASH") {
-          // TODO: handle other tools here too
+          response = answer;
+        } else if (name === "BASH") {
           const question = `\n\nAGENT wants to run a bash command \n\n ${JSON.stringify(toolToCall.args, null, 2)} \n\n Y/N ??`;
           
           const answer = await askQuestion(question);
@@ -206,105 +179,231 @@ export async function agentLoop(input: string, sessionId: string, isThereFileCha
               `,
             });
           } else {
-            isThereFileChanges = true;
-
-            sessionMessages.gemini.push({
-              parts: [{
-                functionCall: {
-                  name: toolToCall.name,
-                  id: toolToCall.id,
-                  args: toolToCall.args
-                },
-                thoughtSignature
-              }],
-              role: "model"
-            });
-            sessionMessages.openai.push({
-              content: `
-                <TOOL_TO_USE>
-                  ${JSON.stringify(toolToCall)}
-                <TOOL_TO_USE>
-              `,
-              role: "system"
-            });
-                        
-            const fn = TOOL_IMPLEMENTATIONS[toolToCall.name];
-            const response = await fn({ command: toolToCall.args.command, sessionId });
-                                        
-            console.log(truncateResult(response));
-            
-            sessionMessages.gemini.push({
-              parts: [{
-                functionResponse: {
-                  name: toolToCall.name,
-                  id: toolToCall.id,
-                  response: { response: truncateResult(response) }
-                },
-                thoughtSignature
-              }],
-              role: "model"
-            });
-            sessionMessages.openai.push({
-              content: `
-              <TOOL_RESPONSE>
-                ${JSON.stringify(truncateResult(response))}
-              <TOOL_RESPONSE>
-              `,
-              role: "system"
-            });
+            const fn = TOOL_IMPLEMENTATIONS[name];
+            response = await fn({ command: args.command, sessionId });
           }
-        } else if (toolToCall.name === "SAVE_MEMORY") {
-            sessionMessages.gemini.push({
-              parts: [{
-                functionCall: {
-                  name: toolToCall.name,
-                  id: toolToCall.id,
-                  args: toolToCall.args
-                },
-                thoughtSignature
-              }],
-              role: "model"
-            });
-            
-            sessionMessages.openai.push({
-              content: `
-                <TOOL_TO_USE>
-                  ${JSON.stringify(toolToCall)}
-                <TOOL_TO_USE>
-              `,
-              role: "system"
-            });
-
-            const fn = TOOL_IMPLEMENTATIONS[toolToCall.name];
-            const response = await fn(toolToCall.args);
-
-            sessionMessages.gemini.push({
-              parts: [{
-                functionResponse: {
-                  name: toolToCall.name,
-                  id: toolToCall.id,
-                  response: { response: response }
-                },
-                thoughtSignature
-              }],
-              role: "model"
-            });                                
-
-            sessionMessages.openai.push({
-              content: `
-              <TOOL_RESPONSE>
-                ${JSON.stringify(response)}
-              <TOOL_RESPONSE>
-              `,
-              role: "system"
-            });
-
+        } else if (name === "SAVE_MEMORY") {
+          const fn = TOOL_IMPLEMENTATIONS[name];
+          response = await fn(args);
         }
+        
+        sessionMessages.gemini.push({
+          parts: [{
+            functionCall: {
+              name: name,
+              id: id,
+              args: args
+            },
+            thoughtSignature
+          }],
+          role: "model"
+        });
+
+        sessionMessages.openai.push({
+          content: `
+            <TOOL_TO_USE>
+              ${JSON.stringify(toolToCall)}
+            <TOOL_TO_USE>
+          `,
+          role: "system"
+        });
+        
+        sessionMessages.gemini.push({
+          role: "user",
+          parts: [{
+            functionResponse: {
+              name: name,
+              response: { response: name === "BASH" ? truncateResult(response) : response },
+            },
+            thoughtSignature
+          }]
+        });
+
+        sessionMessages.openai.push({
+          role: "user",
+          content: `
+            <TOOL_RESPONSE>
+              ${name === "BASH" ? JSON.stringify(truncateResult(response)) : JSON.stringify(response)}
+            <TOOL_RESPONSE>
+          `,
+        });
       }
       
-      console.log(textResponseAccumulated)
+      // old code (total 170 lines)
+      // if (toolToCall && toolToCall.name) {
+      //   if (toolToCall.name === "ASK_QUESTION" || toolToCall.name === "CREATE_PLAN") {
+      //     const question = `\n\n${toolToCall.name === "ASK_QUESTION" ? `kindly answer these questions\n\n ${JSON.stringify(toolToCall.args)}\n\n` : `kindly approve the plan or let us know the issues with the plan\n\n ${JSON.stringify(toolToCall.args)}`}\n\n`;
+          
+      //     const answer = await askQuestion(question);
+          
+      //     if (!answer) {
+      //       console.log("tool interrupted")
+      //       break;
+      //     }
+
+      //     sessionMessages.gemini.push({
+      //       parts: [{
+      //         functionCall: {
+      //           name: toolToCall.name,
+      //           id: toolToCall.id,
+      //           args: toolToCall.args
+      //         },
+      //         thoughtSignature
+      //       }],
+      //       role: "model"
+      //     });
+
+      //     sessionMessages.openai.push({
+      //       content: `
+      //         <TOOL_TO_USE>
+      //           ${JSON.stringify(toolToCall)}
+      //         <TOOL_TO_USE>
+      //       `,
+      //       role: "system"
+      //     });
+          
+      //     sessionMessages.gemini.push({
+      //       role: "user",
+      //       parts: [{
+      //         functionResponse: {
+      //           name: toolToCall.name,
+      //           response: { answer },
+      //         },
+      //         thoughtSignature
+      //       }]
+      //     });
+
+      //     sessionMessages.openai.push({
+      //       role: "user",
+      //       content: `
+      //         <TOOL_RESPONSE>
+      //           ${JSON.stringify(answer)}
+      //         <TOOL_RESPONSE>
+      //       `,
+      //     });
+      //   } else if (toolToCall.name === "BASH") {
+      //     const question = `\n\nAGENT wants to run a bash command \n\n ${JSON.stringify(toolToCall.args, null, 2)} \n\n Y/N ??`;
+          
+      //     const answer = await askQuestion(question);
+
+      //     const approved = answer.trim().toLowerCase() === "y";
+
+      //     if (!approved) {
+      //       sessionMessages.gemini.push({
+      //         role: "user",
+      //         parts: [{
+      //           functionResponse: {
+      //             name: toolToCall.name,
+      //             response: { answer: `user do not want you to run bash command: ${JSON.stringify(toolToCall.args, null, 2)}, so avoid commands like these in future steps.` },
+      //           },
+      //           thoughtSignature
+      //         }]
+      //       });
+      //       sessionMessages.openai.push({
+      //         role: "user",
+      //         content: `
+      //           <TOOL_RESPONSE>
+      //             user do not want you to run bash command: ${JSON.stringify(toolToCall.args, null, 2)}, so avoid commands like these in future steps.
+      //           <TOOL_RESPONSE>
+      //         `,
+      //       });
+      //     } else {
+      //       const fn = TOOL_IMPLEMENTATIONS[toolToCall.name];
+      //       const response = await fn({ command: toolToCall.args.command, sessionId });
+
+      //       sessionMessages.gemini.push({
+      //         parts: [{
+      //           functionCall: {
+      //             name: toolToCall.name,
+      //             id: toolToCall.id,
+      //             args: toolToCall.args
+      //           },
+      //           thoughtSignature
+      //         }],
+      //         role: "model"
+      //       });
+
+      //       sessionMessages.openai.push({
+      //         content: `
+      //           <TOOL_TO_USE>
+      //             ${JSON.stringify(toolToCall)}
+      //           <TOOL_TO_USE>
+      //         `,
+      //         role: "system"
+      //       });
+
+      //       sessionMessages.gemini.push({
+      //         parts: [{
+      //           functionResponse: {
+      //             name: toolToCall.name,
+      //             id: toolToCall.id,
+      //             response: { response: truncateResult(response) }
+      //           },
+      //           thoughtSignature
+      //         }],
+      //         role: "model"
+      //       });
+            
+      //       sessionMessages.openai.push({
+      //         content: `
+      //         <TOOL_RESPONSE>
+      //           ${JSON.stringify(truncateResult(response))}
+      //         <TOOL_RESPONSE>
+      //         `,
+      //         role: "system"
+      //       });
+      //     }
+      //   } else if (toolToCall.name === "SAVE_MEMORY") {
+      //     const fn = TOOL_IMPLEMENTATIONS[toolToCall.name];
+      //     const response = await fn(toolToCall.args);
+
+      //     sessionMessages.gemini.push({
+      //       parts: [{
+      //         functionCall: {
+      //           name: toolToCall.name,
+      //           id: toolToCall.id,
+      //           args: toolToCall.args
+      //         },
+      //         thoughtSignature
+      //       }],
+      //       role: "model"
+      //     });
+          
+      //     sessionMessages.openai.push({
+      //       content: `
+      //         <TOOL_TO_USE>
+      //           ${JSON.stringify(toolToCall)}
+      //         <TOOL_TO_USE>
+      //       `,
+      //       role: "system"
+      //     });
+
+      //     sessionMessages.gemini.push({
+      //       parts: [{
+      //         functionResponse: {
+      //           name: toolToCall.name,
+      //           id: toolToCall.id,
+      //           response: { response: response }
+      //         },
+      //         thoughtSignature
+      //       }],
+      //       role: "model"
+      //     });                                
+
+      //     sessionMessages.openai.push({
+      //       content: `
+      //       <TOOL_RESPONSE>
+      //         ${JSON.stringify(response)}
+      //       <TOOL_RESPONSE>
+      //       `,
+      //       role: "system"
+      //     });
+      //   }
+      // }
       
       if (!functionCalls) {
+        console.log(textResponseAccumulated)
+        
         sessionMessages.gemini.push({
           role: "model",
           parts: [{ text: textResponseAccumulated }]
@@ -318,9 +417,10 @@ export async function agentLoop(input: string, sessionId: string, isThereFileCha
           `,
         });
       }
-
+      
       // STORING MESSAGES
       sessionManager.setSessionMsg(sessionId, sessionMessages);
+      console.log("\n\ntotal tokens", tokens)
       
       if (!functionCalls) break;
     }

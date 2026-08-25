@@ -1,17 +1,19 @@
 import { type GenerateContentConfig, type Part } from "@google/genai";
 import { z } from "zod";
 
+export type ToolNames = "BASH" | "ASK_QUESTION" | "CREATE_PLAN" | "SAVE_MEMORY";
+
 export type FunctionCall =  {
     /** Optional. The unique id of the function call. If populated, the client to execute the `function_call` and return the response with the matching `id`. */
     id?: string;
     /** Optional. The function parameters and values in JSON object format. See FunctionDeclaration.parameters for parameter details. */
     args?: Record<string, unknown>;
     /** Optional. The name of the function to call. Matches FunctionDeclaration.name. */
-    name?: string;
+    name?: ToolNames;
 }
 
 export interface FunctionTool {
-  name: string;
+  name: ToolNames;
 
   parameters: { [key: string]: unknown } | null;
 
@@ -75,14 +77,8 @@ export type GeminiProviderResponse = {
   thoughtSignature?: string
 }
 
-export type OpenaiProviderResponse = {
-  provider: "openai", 
-  some_payload: boolean
-}
-
 export type MultiProvidersPayload = GeminiProviderPayload | OpenAiProviderPayload
 
-// export type MultiProvidersResponse = GeminiProviderResponse | OpenaiProviderResponse
 export type MultiProvidersResponse = {
   totalToken: number,
   toolToCall?: FunctionCall,
