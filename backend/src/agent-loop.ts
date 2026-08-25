@@ -127,10 +127,11 @@ export async function agentLoop(input: string, sessionId: string, userSpecifiedP
       
       if (toolCall) {
         toolToCall = toolCall
-        console.log("\n\ncalling", toolCall.name)
+        console.log("\n\nUSING TOOL:", toolCall.name)
       }
-
+      
       tokens = totalToken;
+      console.log("TOKEN USED:", tokens)
       
       functionCalls = moreFunctionCall;
       
@@ -142,8 +143,8 @@ export async function agentLoop(input: string, sessionId: string, userSpecifiedP
         
         if (name === "ASK_QUESTION" || name === "CREATE_PLAN") {
           const question = `\n\n${name === "ASK_QUESTION" 
-            ? `kindly answer these questions\n\n ${JSON.stringify(toolToCall.args)}\n\n` 
-            : `kindly approve the plan or let us know the issues with the plan\n\n ${JSON.stringify(toolToCall.args)}`}\n\n`;
+            ? `kindly answer these questions\n\n ${toolToCall.args.questions.map((ques, idx) => `${idx + 1}. ${ques}\n`).join("")}\n\n` 
+            : `kindly approve the plan or let us know the issues with the plan\n\n ${`- summary: ${toolToCall.args.summary} \n\n - actionable points: \n${toolToCall.args.plan.map((pl, idx) => `${idx + 1}. ${pl}\n`).join("")}`}`}\n\n`;
           
           const answer = await askQuestion(question);
           
@@ -153,7 +154,7 @@ export async function agentLoop(input: string, sessionId: string, userSpecifiedP
           
           response = answer;
         } else if (name === "BASH") {
-          const question = `\n\nAGENT wants to run a bash command \n\n ${JSON.stringify(toolToCall.args, null, 2)} \n\n Y/N ??`;
+          const question = `\n\nAGENT wants to run a bash command \n\n - purpose: ${toolToCall.args.purpose} \n - command: ${toolToCall.args.command} \n\n Y/N ??`;
           
           const answer = await askQuestion(question);
 
@@ -228,179 +229,7 @@ export async function agentLoop(input: string, sessionId: string, userSpecifiedP
           `,
         });
       }
-      
-      // old code (total 170 lines)
-      // if (toolToCall && toolToCall.name) {
-      //   if (toolToCall.name === "ASK_QUESTION" || toolToCall.name === "CREATE_PLAN") {
-      //     const question = `\n\n${toolToCall.name === "ASK_QUESTION" ? `kindly answer these questions\n\n ${JSON.stringify(toolToCall.args)}\n\n` : `kindly approve the plan or let us know the issues with the plan\n\n ${JSON.stringify(toolToCall.args)}`}\n\n`;
-          
-      //     const answer = await askQuestion(question);
-          
-      //     if (!answer) {
-      //       console.log("tool interrupted")
-      //       break;
-      //     }
-
-      //     sessionMessages.gemini.push({
-      //       parts: [{
-      //         functionCall: {
-      //           name: toolToCall.name,
-      //           id: toolToCall.id,
-      //           args: toolToCall.args
-      //         },
-      //         thoughtSignature
-      //       }],
-      //       role: "model"
-      //     });
-
-      //     sessionMessages.openai.push({
-      //       content: `
-      //         <TOOL_TO_USE>
-      //           ${JSON.stringify(toolToCall)}
-      //         <TOOL_TO_USE>
-      //       `,
-      //       role: "system"
-      //     });
-          
-      //     sessionMessages.gemini.push({
-      //       role: "user",
-      //       parts: [{
-      //         functionResponse: {
-      //           name: toolToCall.name,
-      //           response: { answer },
-      //         },
-      //         thoughtSignature
-      //       }]
-      //     });
-
-      //     sessionMessages.openai.push({
-      //       role: "user",
-      //       content: `
-      //         <TOOL_RESPONSE>
-      //           ${JSON.stringify(answer)}
-      //         <TOOL_RESPONSE>
-      //       `,
-      //     });
-      //   } else if (toolToCall.name === "BASH") {
-      //     const question = `\n\nAGENT wants to run a bash command \n\n ${JSON.stringify(toolToCall.args, null, 2)} \n\n Y/N ??`;
-          
-      //     const answer = await askQuestion(question);
-
-      //     const approved = answer.trim().toLowerCase() === "y";
-
-      //     if (!approved) {
-      //       sessionMessages.gemini.push({
-      //         role: "user",
-      //         parts: [{
-      //           functionResponse: {
-      //             name: toolToCall.name,
-      //             response: { answer: `user do not want you to run bash command: ${JSON.stringify(toolToCall.args, null, 2)}, so avoid commands like these in future steps.` },
-      //           },
-      //           thoughtSignature
-      //         }]
-      //       });
-      //       sessionMessages.openai.push({
-      //         role: "user",
-      //         content: `
-      //           <TOOL_RESPONSE>
-      //             user do not want you to run bash command: ${JSON.stringify(toolToCall.args, null, 2)}, so avoid commands like these in future steps.
-      //           <TOOL_RESPONSE>
-      //         `,
-      //       });
-      //     } else {
-      //       const fn = TOOL_IMPLEMENTATIONS[toolToCall.name];
-      //       const response = await fn({ command: toolToCall.args.command, sessionId });
-
-      //       sessionMessages.gemini.push({
-      //         parts: [{
-      //           functionCall: {
-      //             name: toolToCall.name,
-      //             id: toolToCall.id,
-      //             args: toolToCall.args
-      //           },
-      //           thoughtSignature
-      //         }],
-      //         role: "model"
-      //       });
-
-      //       sessionMessages.openai.push({
-      //         content: `
-      //           <TOOL_TO_USE>
-      //             ${JSON.stringify(toolToCall)}
-      //           <TOOL_TO_USE>
-      //         `,
-      //         role: "system"
-      //       });
-
-      //       sessionMessages.gemini.push({
-      //         parts: [{
-      //           functionResponse: {
-      //             name: toolToCall.name,
-      //             id: toolToCall.id,
-      //             response: { response: truncateResult(response) }
-      //           },
-      //           thoughtSignature
-      //         }],
-      //         role: "model"
-      //       });
             
-      //       sessionMessages.openai.push({
-      //         content: `
-      //         <TOOL_RESPONSE>
-      //           ${JSON.stringify(truncateResult(response))}
-      //         <TOOL_RESPONSE>
-      //         `,
-      //         role: "system"
-      //       });
-      //     }
-      //   } else if (toolToCall.name === "SAVE_MEMORY") {
-      //     const fn = TOOL_IMPLEMENTATIONS[toolToCall.name];
-      //     const response = await fn(toolToCall.args);
-
-      //     sessionMessages.gemini.push({
-      //       parts: [{
-      //         functionCall: {
-      //           name: toolToCall.name,
-      //           id: toolToCall.id,
-      //           args: toolToCall.args
-      //         },
-      //         thoughtSignature
-      //       }],
-      //       role: "model"
-      //     });
-          
-      //     sessionMessages.openai.push({
-      //       content: `
-      //         <TOOL_TO_USE>
-      //           ${JSON.stringify(toolToCall)}
-      //         <TOOL_TO_USE>
-      //       `,
-      //       role: "system"
-      //     });
-
-      //     sessionMessages.gemini.push({
-      //       parts: [{
-      //         functionResponse: {
-      //           name: toolToCall.name,
-      //           id: toolToCall.id,
-      //           response: { response: response }
-      //         },
-      //         thoughtSignature
-      //       }],
-      //       role: "model"
-      //     });                                
-
-      //     sessionMessages.openai.push({
-      //       content: `
-      //       <TOOL_RESPONSE>
-      //         ${JSON.stringify(response)}
-      //       <TOOL_RESPONSE>
-      //       `,
-      //       role: "system"
-      //     });
-      //   }
-      // }
-      
       if (!functionCalls) {
         console.log(textResponseAccumulated)
         
@@ -420,7 +249,6 @@ export async function agentLoop(input: string, sessionId: string, userSpecifiedP
       
       // STORING MESSAGES
       sessionManager.setSessionMsg(sessionId, sessionMessages);
-      console.log("\n\ntotal tokens", tokens)
       
       if (!functionCalls) break;
     }

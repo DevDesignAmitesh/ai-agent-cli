@@ -49,9 +49,6 @@ export const TOOLS: FunctionTool[] = [
       - Search code (grep, rg)
       - Check the current directory (pwd)
 
-      Input:
-      - command: The bash command to execute.
-
       Returns:
       {
         stdout: "Command standard output",
@@ -65,9 +62,14 @@ export const TOOLS: FunctionTool[] = [
       properties: {
         command: {
           type: "string",
+          description: "The bash command to execute",
+        },
+        purpose: {
+          type: "string",
+          description: "Explanation of what's the purpose of the command",
         },
       },
-      required: ["command"],
+      required: ["command", "purpose"],
       additionalProperties: false,
     },
   },
