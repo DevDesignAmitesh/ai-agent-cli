@@ -16,12 +16,12 @@ class SessionManager {
   };
 
   getStoredMessages() {
-    return {}
-    // try {
-    //   return JSON.parse(fs.readFileSync(MESSAGES_PATH).toString())
-    // } catch (e) {
-    //   return {}
-    // }
+    // return {}
+    try {
+      return JSON.parse(fs.readFileSync(MESSAGES_PATH).toString())
+    } catch (e) {
+      return {}
+    }
   }
   
   getAllMessages() {
@@ -29,7 +29,7 @@ class SessionManager {
   }
   
   storeAllMessages() {
-    // fs.writeFileSync(MESSAGES_PATH, JSON.stringify(this.messages))
+    fs.writeFileSync(MESSAGES_PATH, JSON.stringify(this.messages))
   }
   
   getSessionMsg(sessionId: string): MessageType {
@@ -47,6 +47,9 @@ class SessionManager {
     this.messages[key] = sessionMsgs;
   }
 
+  getSessionIds() {
+    return Object.entries(this.messages).map((([val]) => val))
+  }
 };
 
 export const sessionManager = SessionManager.getInstance();

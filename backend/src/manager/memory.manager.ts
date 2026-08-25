@@ -16,12 +16,12 @@ class MemoryManager {
   }
 
   getStoredMemories() {
-    return {}
-    // try {
-    //   return JSON.parse(fs.readFileSync(MEMORY_PATH).toString())
-    // } catch (e) {
-    //   return {}
-    // }
+    // return {}
+    try {
+      return JSON.parse(fs.readFileSync(MEMORY_PATH).toString())
+    } catch (e) {
+      return {}
+    }
   }
 
   saveMemory(key: string, memory: Memory) {
@@ -31,15 +31,23 @@ class MemoryManager {
       this.memory[key] = [memory];
     }
     
-    this.saveAllMemory()
+    this.saveAllMemory();
   }
 
-  getMemory(key: string) {
+  deleteMemories(key: string, memoryIdToDelete: string) {
+    const memories = this.getMemories(key);
+    const filteredMemory = memories.filter((mem) => mem.id !== memoryIdToDelete)
+    this.memory[key] = filteredMemory;
+    
+    this.saveAllMemory();
+  }
+
+  getMemories(key: string) {
     return this.memory[key] ?? []
   }
 
   saveAllMemory() {
-    // fs.writeFileSync(MEMORY_PATH, JSON.stringify(this.memory))
+    fs.writeFileSync(MEMORY_PATH, JSON.stringify(this.memory))
   }
 }
 

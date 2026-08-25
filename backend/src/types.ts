@@ -1,7 +1,7 @@
 import { type GenerateContentConfig, type Part } from "@google/genai";
 import { z } from "zod";
 
-export type ToolNames = "BASH" | "ASK_QUESTION" | "CREATE_PLAN" | "SAVE_MEMORY";
+export type ToolNames = "BASH" | "ASK_QUESTION" | "CREATE_PLAN" | "SAVE_MEMORY" | "DELETE_MEMORY" | "GET_MEMORY";
 
 export type FunctionCall =  {
     /** Optional. The unique id of the function call. If populated, the client to execute the `function_call` and return the response with the matching `id`. */
@@ -40,7 +40,8 @@ export type OpenaiTurn = {
 };
 
 export type Memory = {
-  fact: string[]
+  id: string
+  fact: string
 }
 
 export type MessageType = {

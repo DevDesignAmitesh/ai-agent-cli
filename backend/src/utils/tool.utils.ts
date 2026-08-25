@@ -18,11 +18,13 @@ type BashResult = {
 
 export async function bash({
   command,
+  projectPath
 }: {
   command: string;
+  projectPath: string;
 }) {
   return new Promise<{ stdout: string; stderr: string }>((resolve) => {
-    const child = spawn("wsl", ["bash", "-lc", command], { cwd: projectRoot });
+    const child = spawn("wsl", ["bash", "-lc", command], { cwd: projectPath });
 
     let stdout = "";
     let stderr = "";

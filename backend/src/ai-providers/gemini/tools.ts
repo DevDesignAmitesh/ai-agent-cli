@@ -135,6 +135,63 @@ export const TOOLS = [
           required: ["fact", "projectPath"],
         },
       },
+      {
+        name: "GET_MEMORY",
+        description: `
+          Retrieve all previously saved durable facts for this project.
+    
+          Use this tool at the start of a task, or whenever you need to recall
+          project conventions, prior decisions, or user corrections that were
+          saved earlier with SAVE_MEMORY.
+    
+          Input:
+          - projectPath: The project directory to fetch memories for.
+    
+          Returns:
+          An array of saved memory entries (each with an id and a fact) for the
+          given projectPath.        `,
+        parameters: {
+          type: "object",
+          properties: {
+            projectPath: {
+              type: "string",
+              description: "The project directory to fetch memories for.",
+            },
+          },
+          required: ["projectPath"],
+        },
+      },
+      {
+        name: "DELETE_MEMORY",
+        description: `
+          Delete a previously saved memory that is outdated, incorrect, or no
+          longer applicable.
+    
+          Use this tool when the user corrects or contradicts a fact that was
+          saved earlier, or when a saved convention/decision has changed.
+    
+          Input:
+          - projectPath: The project directory the memory belongs to.
+          - memoryIdToDelete: The id of the memory entry to delete (obtained via
+            GET_MEMORY or the confirmation returned by SAVE_MEMORY).
+    
+          Returns: void
+        `,
+        parameters: {
+          type: "object",
+          properties: {
+            projectPath: {
+              type: "string",
+              description: "The project directory the memory belongs to.",
+            },
+            memoryIdToDelete: {
+              type: "string",
+              description: "The id of the memory entry to delete.",
+            },
+          },
+          required: ["projectPath", "memoryIdToDelete"],
+        },
+      },
     ],
   },
 ];

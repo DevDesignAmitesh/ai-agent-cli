@@ -14,7 +14,7 @@ if (!process.env.GEMINI_API_KEY || !process.env.OPENAI_API_KEY) {
   throw new Error("GEMINI_API_KEY or OPENAI_API_KEY not found")
 }
 
-export async function agentLoop(input: string, sessionId: string, userSpecifiedProvider: providers) {
+export async function agentLoop(input: string, sessionId: string, userSpecifiedProvider: providers, projectPath: string) {
   try {
     // tracking number of time loop runs
     let steps = 0;
@@ -79,7 +79,7 @@ export async function agentLoop(input: string, sessionId: string, userSpecifiedP
             contents: sessionMessages.gemini,
             model: "gemini-3.5-flash",
             config: {
-              systemInstruction: getAgentLoopPrompt(),
+              systemInstruction: getAgentLoopPrompt(projectPath),
               tools: GEMINI_TOOLS,
             }
           });
@@ -89,7 +89,7 @@ export async function agentLoop(input: string, sessionId: string, userSpecifiedP
             input: [
               {
                 role: "system",
-                content: getAgentLoopPrompt()
+                content: getAgentLoopPrompt(projectPath)
               },
               ...sessionMessages.openai
             ],
@@ -181,9 +181,9 @@ export async function agentLoop(input: string, sessionId: string, userSpecifiedP
             });
           } else {
             const fn = TOOL_IMPLEMENTATIONS[name];
-            response = await fn({ command: args.command, sessionId });
+            response = await fn({ command: args.command, projectPath });
           }
-        } else if (name === "SAVE_MEMORY") {
+        } else if (name === "SAVE_MEMORY" || name === "DELETE_MEMORY" || name === "GET_MEMORY") {
           const fn = TOOL_IMPLEMENTATIONS[name];
           response = await fn(args);
         }
@@ -247,7 +247,7 @@ export async function agentLoop(input: string, sessionId: string, userSpecifiedP
         });
       }
       
-      // STORING MESSAGES
+      // STORING MESSAGES (IN_MEMORY)
       sessionManager.setSessionMsg(sessionId, sessionMessages);
       
       if (!functionCalls) break;
