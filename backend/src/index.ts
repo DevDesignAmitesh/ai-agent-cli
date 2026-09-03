@@ -12,7 +12,7 @@ console.log(sessionIds.map((id, idx) => `${idx}. ${id}\n`).join(""))
 
 const { sessionId } = await getSessionId();
 
-const projectPath = projectRoot;
+const projectPath = process.cwd();
 
 async function main(firstTime: boolean) {
   const answer = await askQuestion(firstTime ? "How can i help you? " : "Any follow up? ");
