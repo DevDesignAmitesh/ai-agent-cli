@@ -3,6 +3,7 @@ import { OpenAI } from "openai";
 import { ConversationSummarySchema, type MessageType, type providers } from "../types";
 import { SUMMARIZING_PROMPT } from "../prompts/summarize-prompt";
 import { zodTextFormat } from "openai/helpers/zod";
+import fs from "fs";
 
 const openai = new OpenAI();
 const client = new GoogleGenAI({});
@@ -105,3 +106,11 @@ export async function getSummary(sessionMessages: MessageType, userSpecifiedProv
   }
 };
 
+export async function transcribe(fileName: string) {
+  const transcription = await openai.audio.transcriptions.create({
+    file: fs.createReadStream(fileName),
+    model: 'whisper-1',
+  });
+
+  return transcription.text;
+}
