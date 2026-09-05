@@ -3,7 +3,6 @@ import { OpenAI } from "openai";
 import { ConversationSummarySchema, type MessageType, type providers } from "../types";
 import { SUMMARIZING_PROMPT } from "../prompts/summarize-prompt";
 import { zodTextFormat } from "openai/helpers/zod";
-import fs from "fs";
 
 const openai = new OpenAI();
 const client = new GoogleGenAI({});
@@ -107,18 +106,21 @@ export async function getSummary(sessionMessages: MessageType, userSpecifiedProv
 };
 
 export async function transcribe(fileName: string) {
-  const formData = new FormData()
-  formData.append("audio", fileName);
-
-  const response = await fetch("http://localhost:8080/data", {
+  const response = await fetch("http://localhost:8000/transcribe", {
     method: "POST",
-    body: formData
+    body: JSON.stringify({ fileName })
   })
   
-  const transcription = await openai.audio.transcriptions.create({
-    file: fs.createReadStream(fileName),
-    model: 'whisper-1',
-  });
+  const data = await response.json();
+  
+  console.log("RESPONSE FROM LOCAL_STT", data);
+  
+  return data?.content ?? "";
+  
+  // const transcription = await openai.audio.transcriptions.create({
+  //   file: fs.createReadStream(fileName),
+  //   model: 'whisper-1',
+  // });
 
-  return transcription.text;
+  // return transcription.text;
 }
