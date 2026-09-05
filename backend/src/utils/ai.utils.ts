@@ -107,6 +107,14 @@ export async function getSummary(sessionMessages: MessageType, userSpecifiedProv
 };
 
 export async function transcribe(fileName: string) {
+  const formData = new FormData()
+  formData.append("audio", fileName);
+
+  const response = await fetch("http://localhost:8080/data", {
+    method: "POST",
+    body: formData
+  })
+  
   const transcription = await openai.audio.transcriptions.create({
     file: fs.createReadStream(fileName),
     model: 'whisper-1',
