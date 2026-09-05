@@ -124,3 +124,27 @@ export async function transcribe(fileName: string) {
 
   // return transcription.text;
 }
+
+
+export async function transcribeAudioChunk(
+  audio: Buffer
+) {
+  const response = await fetch(
+    "http://localhost:8000/transcribe-chunk",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream",
+      },
+      body: audio,
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `STT request failed: ${response.status}`
+    );
+  }
+
+  return await response.json();
+}

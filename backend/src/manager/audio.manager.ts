@@ -1,13 +1,19 @@
 import fs from 'fs';
 import path from 'path';
 import { spawn, ChildProcess } from 'child_process';
-import { transcribe } from '../utils/ai.utils';
+import { transcribe, transcribeAudioChunk } from '../utils/ai.utils';
+
+const CHUNK_SIZE = 32000 * 2;
 
 class AudioManager {
   private static instance: AudioManager;
   private soxProcess: ChildProcess | null = null;
+  private audioBuffer: Buffer[] = [];
+  private totalAudioBytes = 0;
+  private pendingTranscriptions: Promise<any>[] = [];
 
   public fileName: string = '';
+  private transcript: string = "";
 
   private constructor() {}
 
@@ -31,14 +37,19 @@ class AudioManager {
 
   public startRecording() {
     if (this.soxProcess) {
-      console.log('Already recording...');
+      // console.log('Already recording...');
       return;
     }
 
+    this.transcript = "";
+    this.audioBuffer = [];
+    this.totalAudioBytes = 0;
+    this.pendingTranscriptions = [];
+    
     // Create a new file for every recording
     this.fileName = this.getCurrAudioFile();
 
-    console.log('\n\nSPEAK...');
+    // console.log('\n\nSPEAK...');
 
     this.soxProcess = spawn('sox', [
       '-t',
@@ -57,70 +68,126 @@ class AudioManager {
       '-b',
       '16',
 
-      // Output file
-      this.fileName,
+      // Output to stdout
+      "-",
+
+      // // Output file
+      // this.fileName,
     ]);
 
-    this.soxProcess.stderr?.on('data', (data) => {
-      console.log("DATA", data);
+    this.soxProcess.stderr?.on('data', (error) => {
+      // console.log("ERROR", error);
     });
 
+    this.soxProcess.stdout?.on(
+      'data',
+      (chunk: Buffer) => {
+
+        this.audioBuffer.push(chunk);
+        this.totalAudioBytes += chunk.length;
+
+        if (this.totalAudioBytes >= CHUNK_SIZE) {
+
+          const audio = Buffer.concat(
+            this.audioBuffer
+          );
+
+          this.audioBuffer = [];
+          this.totalAudioBytes = 0;
+
+          const request =
+            this.processAudioChunk(audio);
+
+          this.pendingTranscriptions.push(request);
+
+          request.finally(() => {
+            this.pendingTranscriptions =
+              this.pendingTranscriptions.filter(
+                (p) => p !== request
+              );
+          });
+        }
+      }
+    );
+    
     this.soxProcess.on('error', (error) => {
       console.error('SoX process error:', error);
       this.soxProcess = null;
     });
 
     this.soxProcess.on('close', (code) => {
-      console.log(`SoX process exited with code: ${code}`);
+      // console.log(`SoX process exited with code: ${code}`);
       this.soxProcess = null;
     });
   }
 
+  private async processAudioChunk(audio: Buffer) {
+    try {
+      const result = await transcribeAudioChunk(audio);
+
+      console.log("CHUNKS", result.content);
+
+      this.transcript += result.content;
+    } catch (error) {
+      console.error("STT ERROR:", error);
+    }
+  }
+  
   public async stopRecording() {
     if (!this.soxProcess) {
       return;
     }
 
-    console.log('Stopped recording...');
-
     const process = this.soxProcess;
 
-    // Wait for SoX to completely exit.
-    // This ensures the WAV file has been finalized.
+    // 1. Stop microphone / SoX
     await new Promise<void>((resolve, reject) => {
       process.once('close', () => {
         resolve();
       });
 
-      process.once('error', (error) => {
-        reject(error);
-      });
+      process.once('error', reject);
 
-      // Ctrl+C equivalent for SoX
-      if (process.stdin) {
-        process.kill('SIGINT');
-      } else {
-        process.kill();
-      }
+      process.kill('SIGINT');
     });
 
     this.soxProcess = null;
 
-    // Make sure the file actually exists
-    if (!fs.existsSync(this.fileName)) {
-      throw new Error(`Recording file was not created: ${this.fileName}`);
+    // 2. Process leftover audio
+    if (this.totalAudioBytes > 0) {
+
+      const finalAudio = Buffer.concat(
+        this.audioBuffer
+      );
+
+      this.audioBuffer = [];
+      this.totalAudioBytes = 0;
+
+      const request =
+        this.processAudioChunk(finalAudio);
+
+      this.pendingTranscriptions.push(request);
+
+      request.finally(() => {
+        this.pendingTranscriptions =
+          this.pendingTranscriptions.filter(
+            (p) => p !== request
+          );
+      });
     }
 
-    const stats = fs.statSync(this.fileName);
+    // 3. Wait for every STT request
+    await Promise.all(
+      this.pendingTranscriptions
+    );
 
-    if (stats.size === 0) {
-      throw new Error('Recording file is empty.');
-    }
-  
-    // Only transcribe AFTER SoX has finished writing the WAV
-    const transcribedResponse = await transcribe(this.fileName);
-    
-    return transcribedResponse;
+    // 4. Everything is done
+    console.log(
+      "FINAL TRANSCRIPT:",
+      this.transcript
+    );
+
+    return this.transcript;
   }
   
 }

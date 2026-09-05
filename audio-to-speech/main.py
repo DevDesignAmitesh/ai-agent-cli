@@ -1,4 +1,5 @@
 from faster_whisper import WhisperModel
+import numpy as np
 
 model = WhisperModel(
     "base",
@@ -6,26 +7,38 @@ model = WhisperModel(
     compute_type="int8"
 )
 
+def transcribe_pcm(audio_bytes):
+    audio = np.frombuffer(
+        audio_bytes,
+        dtype=np.int16
+    )
 
-def transcribe(audio_path):
+    # Convert int16 → float32
+    audio = audio.astype(np.float32) / 32768.0
+
     segments, info = model.transcribe(
-        audio_path,
+        audio,
         word_timestamps=True,
         beam_size=5
     )
 
     content_metadata = []
     content = []
+    segment_metadata = []
 
-    # Process segments
     for segment in segments:
-        print(
-            f"--- Segment [{segment.start:.2f}s -> "
-            f"{segment.end:.2f}s]: {segment.text.strip()} ---"
-        )
+
+        segment_text = segment.text.strip()
+
+        segment_metadata.append({
+            "start": segment.start,
+            "end": segment.end,
+            "text": segment_text,
+        })
 
         if segment.words:
             for word in segment.words:
+
                 content_metadata.append({
                     "word": word.word,
                     "start": word.start,
@@ -33,14 +46,13 @@ def transcribe(audio_path):
                     "confidence": word.probability,
                 })
 
-                content.append(word.word)
+                content.append(word.word.strip())
 
-    # Build response AFTER content has been populated
-    final_response = {
+    return {
         "language": info.language,
         "language_probability": info.language_probability,
-        "content": "".join(content),
-        "content_metadata": content_metadata
+        "content": " ".join(content),
+        "content_metadata": content_metadata,
+        "segments": segment_metadata,
+        "duration": info.duration,
     }
-
-    return final_response
