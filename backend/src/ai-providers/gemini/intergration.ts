@@ -1,4 +1,5 @@
 import { GoogleGenAI, } from "@google/genai";
+import { wrapGoogleGenAI } from "neatlogs";
 import type { FunctionCall, MultiProvidersPayload, MultiProvidersResponse } from "../../types";
 
 
@@ -7,7 +8,7 @@ export async function geminiIntegration(data: MultiProvidersPayload): Promise<Mu
   
   const { contents, model, config }= data;
   
-  const client = new GoogleGenAI({});
+  const client = wrapGoogleGenAI(new GoogleGenAI({}));
   
   const stream = await client.models.generateContentStream({
     contents, 

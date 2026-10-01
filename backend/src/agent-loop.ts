@@ -1,3 +1,4 @@
+import { span, trace } from "neatlogs";
 import { TOOL_IMPLEMENTATIONS } from "./tools";
 import { getAgentLoopPrompt } from "./prompts/agent-loop-prompt";
 import { askQuestion, truncateResult } from "./utils/tool.utils";
@@ -15,6 +16,12 @@ if (!process.env.GEMINI_API_KEY || !process.env.OPENAI_API_KEY) {
 }
 
 export async function agentLoop(input: string, sessionId: string, userSpecifiedProvider: providers, projectPath: string) {
+  return trace({ name: "agent-turn", kind: "WORKFLOW", sessionId }, () =>
+    runAgentLoop(input, sessionId, userSpecifiedProvider, projectPath)
+  );
+}
+
+async function runAgentLoop(input: string, sessionId: string, userSpecifiedProvider: providers, projectPath: string) {
   try {
     // tracking number of time loop runs
     let steps = 0;
@@ -139,54 +146,59 @@ export async function agentLoop(input: string, sessionId: string, userSpecifiedP
       if (toolToCall && functionCalls) {
         const { name, args, id } = toolToCall;
 
-        let response;
+        // TOOL span so each tool call (incl. approvals/denials) shows up in the trace
+        const response = await span({ kind: "TOOL", name }, async (_toolArgs: typeof args) => {
+          let response;
         
-        if (name === "ASK_QUESTION" || name === "CREATE_PLAN") {
-          const question = `\n\n${name === "ASK_QUESTION" 
-            ? `kindly answer these questions\n\n ${toolToCall.args.questions.map((ques, idx) => `${idx + 1}. ${ques}\n`).join("")}\n\n` 
-            : `kindly approve the plan or let us know the issues with the plan\n\n ${`- summary: ${toolToCall.args.summary} \n\n - actionable points: \n${toolToCall.args.plan.map((pl, idx) => `${idx + 1}. ${pl}\n`).join("")}`}`}\n\n`;
+          if (name === "ASK_QUESTION" || name === "CREATE_PLAN") {
+            const question = `\n\n${name === "ASK_QUESTION" 
+              ? `kindly answer these questions\n\n ${toolToCall.args.questions.map((ques, idx) => `${idx + 1}. ${ques}\n`).join("")}\n\n` 
+              : `kindly approve the plan or let us know the issues with the plan\n\n ${`- summary: ${toolToCall.args.summary} \n\n - actionable points: \n${toolToCall.args.plan.map((pl, idx) => `${idx + 1}. ${pl}\n`).join("")}`}`}\n\n`;
           
-          const answer = await askQuestion(question);
+            const answer = await askQuestion(question);
           
-          if (!answer) {
-            throw new Error("tool interrupted")
-          }
+            if (!answer) {
+              throw new Error("tool interrupted")
+            }
           
-          response = answer;
-        } else if (name === "BASH") {
-          const question = `\n\nAGENT wants to run a bash command \n\n - purpose: ${toolToCall.args.purpose} \n - command: ${toolToCall.args.command} \n\n Y/N ??`;
+            response = answer;
+          } else if (name === "BASH") {
+            const question = `\n\nAGENT wants to run a bash command \n\n - purpose: ${toolToCall.args.purpose} \n - command: ${toolToCall.args.command} \n\n Y/N ??`;
           
-          const answer = await askQuestion(question);
+            const answer = await askQuestion(question);
 
-          const approved = answer.trim().toLowerCase() === "y";
+            const approved = answer.trim().toLowerCase() === "y";
 
-          if (!approved) {
-            sessionMessages.gemini.push({
-              role: "user",
-              parts: [{
-                functionResponse: {
-                  name: toolToCall.name,
-                  response: { answer: `user do not want you to run bash command: ${JSON.stringify(toolToCall.args, null, 2)}, so avoid commands like these in future steps.` },
-                },
-                thoughtSignature
-              }]
-            });
-            sessionMessages.openai.push({
-              role: "user",
-              content: `
-                <TOOL_RESPONSE>
-                  user do not want you to run bash command: ${JSON.stringify(toolToCall.args, null, 2)}, so avoid commands like these in future steps.
-                <TOOL_RESPONSE>
-              `,
-            });
-          } else {
+            if (!approved) {
+              sessionMessages.gemini.push({
+                role: "user",
+                parts: [{
+                  functionResponse: {
+                    name: toolToCall.name,
+                    response: { answer: `user do not want you to run bash command: ${JSON.stringify(toolToCall.args, null, 2)}, so avoid commands like these in future steps.` },
+                  },
+                  thoughtSignature
+                }]
+              });
+              sessionMessages.openai.push({
+                role: "user",
+                content: `
+                  <TOOL_RESPONSE>
+                    user do not want you to run bash command: ${JSON.stringify(toolToCall.args, null, 2)}, so avoid commands like these in future steps.
+                  <TOOL_RESPONSE>
+                `,
+              });
+            } else {
+              const fn = TOOL_IMPLEMENTATIONS[name];
+              response = await fn({ command: args.command, projectPath });
+            }
+          } else if (name === "SAVE_MEMORY" || name === "DELETE_MEMORY" || name === "GET_MEMORY") {
             const fn = TOOL_IMPLEMENTATIONS[name];
-            response = await fn({ command: args.command, projectPath });
+            response = await fn(args);
           }
-        } else if (name === "SAVE_MEMORY" || name === "DELETE_MEMORY" || name === "GET_MEMORY") {
-          const fn = TOOL_IMPLEMENTATIONS[name];
-          response = await fn(args);
-        }
+
+          return response;
+        })(args);
         
         sessionMessages.gemini.push({
           parts: [{

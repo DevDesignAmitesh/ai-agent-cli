@@ -1,5 +1,6 @@
 import type { FunctionCall, MultiProvidersPayload, MultiProvidersResponse } from "../../types";
 import { OpenAI } from "openai";
+import { wrapOpenAI } from "neatlogs";
 
 export async function openaiIntegration(data: MultiProvidersPayload): Promise<MultiProvidersResponse> {  
   if (data.provider !== "openai") throw new Error("satisfying TS");
@@ -11,7 +12,7 @@ export async function openaiIntegration(data: MultiProvidersPayload): Promise<Mu
   
   const { input, model, tools } = data;
   
-  const openai = new OpenAI();
+  const openai = wrapOpenAI(new OpenAI());
   
   const stream = await openai.responses.create({ input, model, tools, stream: true });
 

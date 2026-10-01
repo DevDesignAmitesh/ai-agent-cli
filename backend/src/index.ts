@@ -1,8 +1,16 @@
+import { init, shutdown } from 'neatlogs';
 import { agentLoop } from './agent-loop';
 import { sessionManager } from './manager/session.manager';
 import { audioManager } from './manager/audio.manager';
 import { getSessionId } from './utils/session.utils';
 import { askQuestion, projectRoot } from './utils/tool.utils';
+
+await init({ apiKey: process.env.NEATLOGS_API_KEY, workflowName: "coding-agent" });
+
+process.on("SIGINT", async () => {
+  await shutdown();
+  process.exit(0);
+});
 
 let firstTimeLoop = true;
 
@@ -32,6 +40,7 @@ async function main(firstTime: boolean) {
   }
     
   if (answer.trim().toLowerCase() === "no") {
+    await shutdown();
     process.exit(0)
   }
     

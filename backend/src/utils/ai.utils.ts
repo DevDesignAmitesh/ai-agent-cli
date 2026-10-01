@@ -1,11 +1,12 @@
 import { GoogleGenAI } from "@google/genai";
 import { OpenAI } from "openai";
+import { wrapGoogleGenAI, wrapOpenAI } from "neatlogs";
 import { ConversationSummarySchema, type MessageType, type providers } from "../types";
 import { SUMMARIZING_PROMPT } from "../prompts/summarize-prompt";
 import { zodTextFormat } from "openai/helpers/zod";
 
-const openai = new OpenAI();
-const client = new GoogleGenAI({});
+const openai = wrapOpenAI(new OpenAI());
+const client = wrapGoogleGenAI(new GoogleGenAI({}));
 
 export const MAX_SESSION_MESSAGES = 30;
 
